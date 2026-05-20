@@ -7,10 +7,12 @@ const [cmd, ...args] = process.argv.slice(2);
 const commands: Record<string, string> = {
   scrape: "src/scrapers/nta-scraper.ts",
   batch: "scripts/batch-process.ts",
+  "process-pdf": "scripts/process-pdf.ts",
   review: "src/review/review-cli.ts",
   signoff: "src/review/batch-signoff.ts",
   verify: "src/utils/integrity.ts",
   stats: "scripts/stats.ts",
+  status: "src/utils/checkpoints.ts",
   export: "scripts/export-for-opensource.ts",
   "rebuild-index": "scripts/rebuild-index.ts",
   api: "src/api/server.ts",
@@ -26,6 +28,8 @@ Usage:
 Commands:
   scrape         Download PDFs from NTA
   batch          Full pipeline: download -> OCR -> structure -> validate -> save
+  process-pdf    Process a manually-provided PDF (with optional answer key)
+  status         Show checkpoint table — what's been processed
   review         Launch human review CLI
   signoff        Sign off a verified shift
   verify         Verify dataset integrity checksums

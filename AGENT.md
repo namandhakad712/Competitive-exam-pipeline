@@ -47,9 +47,11 @@ Then ask: *"Which exam and shift? e.g. jeemain 2025 22jan-shift1"*
 C:\QUESTION-PIPELINE\
   plan.md                 1722-line design doc (read for full context)
   AGENT.md                THIS FILE
-  package.json            scripts: scrape, batch, review, signoff, verify, stats, api, export,
-                           test-models, rebuild-index, test
+  package.json            scripts: scrape, batch, process-pdf, review, signoff, verify, stats,
+                           status, api, export, test-models, rebuild-index, test
   tsconfig.json
+  input/                  Drop PDFs here for manual processing
+  .checkpoints.json       Auto-tracked — which shifts have been processed
 
   src/
     index.ts              CLI entry (npm run start <cmd>)
@@ -238,6 +240,11 @@ npx tsc --noEmit
 
 ### Step 2: Scrape
 
+```powershell
+# First, check if already processed:
+npm run status
+```
+
 Ask user: *"Which exam, year, and shift? e.g. jeemain 2025 22jan-shift1"*
 
 ```powershell
@@ -367,13 +374,96 @@ npm run signoff -- --exam {exam} --year {year} --shift {shift} --status verified
 npm run verify
 npm run rebuild-index
 npm run stats
+npm run status
 ```
 
 Report back to user: *"JEE Main 2025 22jan-shift1: 90 questions verified, 0 errors, 3 diagrams. Dataset ready at data/jeemain/2025/22jan-shift1/"*
 
 ---
 
-## 5. Agent Review Loop (Alternative — Phase 9 Cross-Validation)
+## 5. Alternative Input: Manual PDF Processing
+
+When the official NTA site has separate question paper + answer key PDFs — or you have a PDF from a 3rd party (Allen, Esaral, Add247, etc.) — use manual input mode.
+
+### Where to get good PDFs
+
+| Source | Answer key included? | Quality |
+|---|---|---|
+| **Allen / Esaral / Add247** | ✅ Yes — embedded at end of PDF | High — already has solutions |
+| **Official NTA site** | ❌ No — separate answer key PDF | Medium — need to merge |
+| **gateoverflow.in** | ✅ Usually yes | Medium — mirror quality |
+
+### How to process a PDF manually
+
+```powershell
+# Single PDF with answer key embedded (Allen, Esaral, Add247, Gateoverflow):
+npm run process-pdf -- --input "C:/path/to/JEE-Main-2025-22Jan-Shift-1.pdf"
+
+# PDF + separate answer key PDF (official NTA):
+npm run process-pdf -- --input "C:/path/to/question-paper.pdf" --answer-key "C:/path/to/answer-key.pdf"
+
+# If filename doesn't match expected patterns, specify manually:
+npm run process-pdf -- --input "my-paper.pdf" --exam jeemain --year 2025 --shift "22jan-s1"
+```
+
+### Filename patterns the parser understands
+
+| Pattern | Parsed as |
+|---|---|
+| `JEE-Main-2025-22-Jan-Shift-1.pdf` | jeemain, 2025, "22jan-s1" |
+| `neet-2024-04-may.pdf` | neet, 2024, "04may-s1" |
+| `jee-advanced-2024-paper-1.pdf` | jeeadv, 2024, "p1" |
+| `NCERT-Exemplar-11-Physics.pdf` | ncert-exemplar, class 11 |
+
+If parsing fails, the script tells you and asks for `--exam`, `--year`, `--shift` flags.
+
+### How separate answer key PDFs work
+
+1. Question paper PDF → Mistral OCR → markdown
+2. Answer key PDF → Mistral OCR → markdown
+3. Both markdown texts are **merged** (answer key appended to questions)
+4. Merged text → AI extraction (structurer finds the answer key naturally)
+5. Pipeline completes as normal
+
+This means **official NTA PDFs work too** — just provide both files.
+
+### Drop PDFs in `input/` folder
+
+Put any PDF in `C:\QUESTION-PIPELINE\input\` and reference it:
+```powershell
+npm run process-pdf -- --input "input/Allen-JEE-2025-22Jan.pdf"
+```
+
+### Where output goes
+
+Same as normal pipeline: `data/{exam}/{year}/{shift}/paper.json`
+
+### Checkpoint system — no double processing
+
+After a shift is processed successfully, a checkpoint is recorded in `.checkpoints.json`.
+Running the same shift again will skip it unless you pass `--force`:
+
+```powershell
+# see what's been processed
+npm run status
+
+# reprocess an existing shift
+npm run process-pdf -- --input "input/paper.pdf" --force
+```
+
+Example `npm run status` output:
+
+```
+EXAM           YEAR   SHIFT        QUESTIONS  SUBJECTS                      DATE
+jeemain        2025   22jan-s1     90         physics, chemistry, mathematics 2026-05-20
+neet           2024   04may-s1     200        physics, chemistry, biology     2026-05-19
+
+Total: 2 shift(s)
+```
+
+---
+
+## 6. Agent Review Loop (Alternative — Phase 9 Cross-Validation)
 
 If user doesn't want to manually review 90 questions, run cross-validation:
 

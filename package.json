@@ -9,6 +9,7 @@
     "start": "npx tsx src/index.ts",
     "scrape": "npx tsx src/scrapers/nta-scraper.ts",
     "batch": "npx tsx scripts/batch-process.ts",
+    "process-pdf": "npx tsx scripts/process-pdf.ts",
     "review": "npx tsx src/review/review-cli.ts",
     "signoff": "npx tsx src/review/batch-signoff.ts",
     "verify": "npx tsx src/utils/integrity.ts",
