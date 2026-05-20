@@ -15,10 +15,10 @@ interface Provider {
 
 const PROVIDERS: Provider[] = [
   {
-    name: "NVIDIA DeepSeek V4 Flash",
+    name: "NVIDIA Qwen3 Coder 480B",
     key: process.env.NVIDIA_API_KEY ?? "", keyName: "NVIDIA_API_KEY",
     url: "https://integrate.api.nvidia.com/v1/chat/completions",
-    body: { model: "deepseek-ai/deepseek-v4-flash", messages: [{ role: "user", content: "hi" }], max_tokens: 1 },
+    body: { model: "qwen/qwen3-coder-480b-a35b-instruct", messages: [{ role: "user", content: "hi" }], max_tokens: 5 },
   },
   {
     name: "LongCat Flash Lite",
@@ -61,7 +61,7 @@ async function test(p: Provider): Promise<string> {
     if (!isGemini) headers["Authorization"] = `Bearer ${p.key}`;
     const r = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${p.key}` },
+      headers,
       body: JSON.stringify(p.body),
       signal: AbortSignal.timeout(120_000),
     });

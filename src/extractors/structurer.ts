@@ -168,7 +168,7 @@ async function callNvidia(prompt: string, systemPrompt: string): Promise<string>
         Authorization: `Bearer ${NVIDIA_KEY}`,
       },
       body: JSON.stringify({
-        model: "deepseek-ai/deepseek-v4-flash",
+        model: "qwen/qwen3-coder-480b-a35b-instruct",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: prompt },
@@ -176,7 +176,6 @@ async function callNvidia(prompt: string, systemPrompt: string): Promise<string>
         temperature: 0.1,
         max_tokens: 64000,
       }),
-      signal: AbortSignal.timeout(120_000),
     });
 
     if (!response.ok) {
@@ -366,9 +365,9 @@ export async function extractQuestions(
   }
 
   const providers: Provider[] = [
-    // 1 — NVIDIA DeepSeek V4 Flash: 40 RPM, 1M context, 64K output, fastest
+    // 1 — NVIDIA Qwen3 Coder 480B: 40 RPM, 262K context (1M via YaRN), coding-optimized for JSON extraction
     {
-      name: "NVIDIA DeepSeek V4 Flash",
+      name: "NVIDIA Qwen3 Coder 480B",
       key: NVIDIA_KEY,
       call: (p, s) => callNvidia(p, s),
       supportsLarge: true,
