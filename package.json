@@ -1,0 +1,26 @@
+{
+  "name": "question-pipeline",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Batch pipeline for Indian exam question extraction and JSON dataset generation",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "npx tsx src/index.ts",
+    "scrape": "npx tsx src/scrapers/nta-scraper.ts",
+    "batch": "npx tsx scripts/batch-process.ts",
+    "review": "npx tsx src/review/review-cli.ts",
+    "signoff": "npx tsx src/review/batch-signoff.ts",
+    "verify": "npx tsx src/utils/integrity.ts",
+    "stats": "npx tsx scripts/stats.ts",
+    "export": "npx tsx scripts/export-for-opensource.ts",
+    "rebuild-index": "npx tsx scripts/rebuild-index.ts",
+    "api": "npx tsx src/api/server.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}
