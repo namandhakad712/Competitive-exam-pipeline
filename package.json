@@ -16,6 +16,7 @@
     "export": "npx tsx scripts/export-for-opensource.ts",
     "rebuild-index": "npx tsx scripts/rebuild-index.ts",
     "api": "npx tsx src/api/server.ts",
+    "test-models": "npx tsx scripts/test-models.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
