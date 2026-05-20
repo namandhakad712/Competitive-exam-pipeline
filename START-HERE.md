@@ -12,12 +12,14 @@
 # 1. Verify environment
 npm test
 
-# 2. Process your first PDF (NEET 2025)
-npx tsx scripts/process-pdf.ts --input input/neet-2025-04may-s1.pdf --use-enhanced-ocr --use-consensus
+# 2. Process your first PDF (NEET 2025) - RECOMMENDED: consensus without enhanced OCR
+npm run process-pdf -- --input input/neet-2025-04may-s1.pdf --use-consensus
 
 # 3. Check results
 type data\neet\2025\04may-s1\paper.json
 ```
+
+**⚠️ IMPORTANT**: Always use `npm run process-pdf --` (with double dash) to load .env file!
 
 **That's it!** Your pipeline is running.
 
@@ -49,35 +51,37 @@ data/neet/2025/04may-s1/
 
 ## 🎛️ COMMAND OPTIONS
 
-### Basic (Fastest, 95% accuracy)
+### Basic (Fastest, 95% accuracy) ⚡ RECOMMENDED
 ```bash
-npx tsx scripts/process-pdf.ts --input input/neet-2025-04may-s1.pdf
+npm run process-pdf -- --input input/neet-2025-04may-s1.pdf
 ```
 
-### Enhanced OCR (Default, 96% accuracy)
+### Consensus (3 providers, 97% accuracy) 🏆 BEST BALANCE
 ```bash
-npx tsx scripts/process-pdf.ts --input input/neet-2025-04may-s1.pdf --use-enhanced-ocr
+npm run process-pdf -- --input input/neet-2025-04may-s1.pdf --use-consensus
 ```
 
-### Consensus (3 providers, 97% accuracy)
+### Enhanced OCR (96% accuracy, can timeout on large PDFs)
 ```bash
-npx tsx scripts/process-pdf.ts --input input/neet-2025-04may-s1.pdf --use-consensus
+npm run process-pdf -- --input input/neet-2025-04may-s1.pdf --use-enhanced-ocr
 ```
 
-### Maximum Accuracy (98% accuracy, slower)
+### Maximum Accuracy (98% accuracy, slowest, may timeout)
 ```bash
-npx tsx scripts/process-pdf.ts --input input/neet-2025-04may-s1.pdf --use-enhanced-ocr --use-consensus
+npm run process-pdf -- --input input/neet-2025-04may-s1.pdf --use-enhanced-ocr --use-consensus
 ```
 
 ### Force Reprocess
 ```bash
-npx tsx scripts/process-pdf.ts --input input/neet-2025-04may-s1.pdf --force
+npm run process-pdf -- --input input/neet-2025-04may-s1.pdf --force
 ```
 
 ### With Answer Key PDF
 ```bash
-npx tsx scripts/process-pdf.ts --input input/neet-2025-04may-s1.pdf --answer-key input/neet-2025-04may-s1-answers.pdf
+npm run process-pdf -- --input input/neet-2025-04may-s1.pdf --answer-key input/neet-2025-04may-s1-answers.pdf
 ```
+
+**⚠️ NOTE**: Enhanced OCR with structured annotations can timeout on large PDFs (>20 pages). Use consensus extraction for best results!
 
 ---
 
@@ -178,29 +182,31 @@ type .env
 
 ## 🎯 RECOMMENDED WORKFLOW
 
-### For Testing (First Time)
+### For Testing (First Time) ⚡
 ```bash
-# 1. Process 1 PDF with basic mode
-npx tsx scripts/process-pdf.ts --input input/neet-2025-04may-s1.pdf
+# 1. Process 1 PDF with consensus (best balance)
+npm run process-pdf -- --input input/neet-2025-04may-s1.pdf --use-consensus
 
 # 2. Check results
 type data\neet\2025\04may-s1\paper.json
 
 # 3. If good, process all PDFs
-npx tsx scripts/batch-process.ts
+npm run batch
 ```
 
-### For Production
+### For Production 🏆
 ```bash
-# 1. Process with maximum accuracy
-npx tsx scripts/process-pdf.ts --input input/neet-2025-04may-s1.pdf --use-enhanced-ocr --use-consensus
+# 1. Process with consensus (97% accuracy, no timeout risk)
+npm run process-pdf -- --input input/neet-2025-04may-s1.pdf --use-consensus
 
 # 2. Run validation
-npx tsx scripts/verify-all.ts
+npx tsx --env-file=.env scripts/verify-all.ts
 
 # 3. Human review (optional, for 100%)
-npx tsx src/review/review-cli.ts
+npm run review
 ```
+
+**⚠️ AVOID**: `--use-enhanced-ocr` on large PDFs (can timeout). Consensus extraction gives 97% accuracy without timeout risk!
 
 ---
 
@@ -232,20 +238,24 @@ data/
 ## 🔥 NEXT STEPS
 
 1. ✅ **Process first PDF** (you're here!)
+   ```bash
+   npm run process-pdf -- --input input/neet-2025-04may-s1.pdf --use-consensus
+   ```
 2. ✅ **Verify output** (check JSON files)
-3. ✅ **Process all PDFs** (batch mode)
-4. 🟡 **Human review** (optional, for 100%)
-5. 🟡 **Export for API** (when ready)
+3. ✅ **Process all PDFs** (batch mode: `npm run batch`)
+4. 🟡 **Human review** (optional, for 100%: `npm run review`)
+5. 🟡 **Export for API** (when ready: `npm run export`)
 
 ---
 
 ## 💡 PRO TIPS
 
-1. **Start small**: Process 1 PDF first, verify it works
-2. **Use consensus for important exams**: NEET, JEE Main finals
+1. **Start with consensus mode**: Best balance of accuracy (97%) and speed (5-8 min)
+2. **Avoid enhanced OCR on large PDFs**: Can timeout (>5 min)
 3. **Check logs**: Pipeline logs everything, watch for warnings
 4. **Don't force unless needed**: Resume is faster
-5. **Human review is optional**: 95-98% is production-ready
+5. **Human review is optional**: 95-97% is production-ready
+6. **Always use `npm run` commands**: They load .env file automatically
 
 ---
 
@@ -253,7 +263,7 @@ data/
 
 **Run this now**:
 ```bash
-npx tsx scripts/process-pdf.ts --input input/neet-2025-04may-s1.pdf --use-enhanced-ocr --use-consensus
+npm run process-pdf -- --input input/neet-2025-04may-s1.pdf --use-consensus
 ```
 
 **Watch the magic happen!** 🚀
@@ -262,6 +272,7 @@ npx tsx scripts/process-pdf.ts --input input/neet-2025-04may-s1.pdf --use-enhanc
 
 ## 📞 NEED HELP?
 
+- Check `QUICK-FIX.md` for network error solutions
 - Check `STATUS.md` for detailed implementation status
 - Check `PLAN.md` for full pipeline design
 - Check `AGENT.md` for technical details

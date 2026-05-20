@@ -1,0 +1,37 @@
+{
+  "neet/2025/04may-s1": {
+    "exam": "neet",
+    "year": 2025,
+    "shift": "04may-s1",
+    "subjects": [
+      "physics",
+      "chemistry",
+      "biology"
+    ],
+    "sourceFile": "C:\\QUESTION-PIPELINE\\data\\neet\\2025\\04may-s1\\paper.json",
+    "timestamp": "2026-05-20T13:00:22.967Z",
+    "totalQuestions": 180,
+    "stages": {
+      "ocr": {
+        "status": "completed",
+        "timestamp": "2026-05-20T13:00:22.968Z"
+      },
+      "extract": {
+        "status": "completed",
+        "timestamp": "2026-05-20T13:00:22.968Z"
+      },
+      "diagrams": {
+        "status": "completed",
+        "timestamp": "2026-05-20T13:00:22.968Z"
+      },
+      "validate": {
+        "status": "completed",
+        "timestamp": "2026-05-20T13:00:22.968Z"
+      },
+      "export": {
+        "status": "completed",
+        "timestamp": "2026-05-20T13:00:22.968Z"
+      }
+    }
+  }
+}

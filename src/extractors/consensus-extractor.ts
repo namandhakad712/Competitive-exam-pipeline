@@ -30,17 +30,22 @@ const GEMINI_KEY = process.env.GEMINI_API_KEY ?? "";
 // ---- Rate limiters ----
 const nvidiaLimiter = new RateLimiter({ maxRequests: 40, windowMs: 60_000 });
 const longcatLimiter = new RateLimiter({ maxRequests: 30, windowMs: 60_000 });
-const poolsideLimiter = new RateLimiter({ maxRequests: 30, windowMs: 60_000 });
+const longcatChatLimiter = new RateLimiter({ maxRequests: 30, windowMs: 60_000 });
+const poolsideLimiter = new RateLimiter({ maxRequests: 100, windowMs: 60_000 });
 const geminiLimiter = new RateLimiter({ maxRequests: 5, windowMs: 60_000 });
 
 // ---- Provider ranking (higher = more reliable for extraction) ----
 const PROVIDER_RANK: Record<ProviderName, number> = {
-  nvidia: 5,
-  longcat: 4,
-  gemini: 3,
-  poolside: 2,
-  vanchin: 1,
-  cerebras: 0,
+  poolside: 7,           // Unlimited + 131K context
+  "longcat-lite": 6,     // 50M tokens/day + 256K context
+  "nvidia-qwen": 5,      // 2,400 RPD + 262K context
+  nvidia: 5,             // same as nvidia-qwen
+  longcat: 4,            // legacy alias for longcat-lite
+  "nvidia-mistral": 4,   // 2,400 RPD + multimodal
+  "longcat-chat": 3,     // 500K tokens/day
+  gemini: 2,             // 20 RPD (validation only)
+  cerebras: 1,           // 2,400 RPD (fallback)
+  vanchin: 0,            // 28,800 RPD (code validation)
 };
 
 // ---- Answer key detection ----
@@ -305,6 +310,108 @@ async function callGemini(
   });
 }
 
+async function callLongcatChat(
+  prompt: string,
+  systemPrompt: string,
+): Promise<string> {
+  return longcatChatLimiter.call(async () => {
+    const response = await fetch(LONGCAT_API, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${LONGCAT_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "LongCat-Flash-Chat",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.1,
+        max_tokens: 256000,
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`LongCat Chat API ${response.status}: ${body.slice(0, 200)}`);
+    }
+
+    const data = (await response.json()) as {
+      choices: Array<{ message: { content: string } }>;
+    };
+    return data.choices?.[0]?.message?.content ?? "";
+  });
+}
+
+async function callNvidiaQwen(
+  prompt: string,
+  systemPrompt: string,
+): Promise<string> {
+  return nvidiaLimiter.call(async () => {
+    const response = await fetch(NVIDIA_API, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${NVIDIA_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "qwen/qwen3-coder-480b-a35b-instruct",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.1,
+        max_tokens: 64000,
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`NVIDIA Qwen API ${response.status}: ${body.slice(0, 200)}`);
+    }
+
+    const data = (await response.json()) as {
+      choices: Array<{ message: { content: string } }>;
+    };
+    return data.choices?.[0]?.message?.content ?? "";
+  });
+}
+
+async function callNvidiaMistral(
+  prompt: string,
+  systemPrompt: string,
+): Promise<string> {
+  return nvidiaLimiter.call(async () => {
+    const response = await fetch(NVIDIA_API, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${NVIDIA_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "mistralai/mistral-large-3-675b-instruct",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.1,
+        max_tokens: 64000,
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`NVIDIA Mistral API ${response.status}: ${body.slice(0, 200)}`);
+    }
+
+    const data = (await response.json()) as {
+      choices: Array<{ message: { content: string } }>;
+    };
+    return data.choices?.[0]?.message?.content ?? "";
+  });
+}
+
 // ===================== Consensus logic =====================
 
 function majorityVote<T>(values: T[]): T {
@@ -459,7 +566,7 @@ export function buildConsensus(
 export async function extractWithConsensus(
   pages: PageContent[],
   exam: Exam,
-  providerNames: ProviderName[] = ["nvidia", "longcat", "gemini"],
+  providerNames: ProviderName[] = ["poolside", "longcat-lite", "nvidia-qwen"],
 ): Promise<ConsensusResult> {
   const userPrompt = buildUserPrompt(pages);
   const answerKeyDetected = hasAnswerKey(userPrompt);
@@ -480,6 +587,10 @@ export async function extractWithConsensus(
     gemini: callGemini,
     vanchin: callNvidia, // fallback
     cerebras: callNvidia, // fallback
+    "longcat-lite": callLongcat,
+    "longcat-chat": callLongcatChat,
+    "nvidia-qwen": callNvidiaQwen,
+    "nvidia-mistral": callNvidiaMistral,
   };
 
   const providerKeys: Record<ProviderName, string> = {
@@ -489,6 +600,10 @@ export async function extractWithConsensus(
     gemini: GEMINI_KEY,
     vanchin: process.env.VC_API_KEY ?? "",
     cerebras: process.env.CEREBRAS_API_KEY ?? "",
+    "longcat-lite": LONGCAT_KEY,
+    "longcat-chat": LONGCAT_KEY,
+    "nvidia-qwen": NVIDIA_KEY,
+    "nvidia-mistral": NVIDIA_KEY,
   };
 
   // Run providers in parallel
@@ -568,7 +683,7 @@ export async function extractWithConsensus(
 export async function distributedConsensusExtract(
   pages: PageContent[],
   exam: Exam,
-  providerNames: ProviderName[] = ["nvidia", "longcat", "gemini"],
+  providerNames: ProviderName[] = ["poolside", "longcat-lite", "nvidia-qwen"],
 ): Promise<ConsensusResult> {
   if (pages.length <= 12) {
     return extractWithConsensus(pages, exam, providerNames);
@@ -589,6 +704,10 @@ export async function distributedConsensusExtract(
     gemini: GEMINI_KEY,
     vanchin: process.env.VC_API_KEY ?? "",
     cerebras: process.env.CEREBRAS_API_KEY ?? "",
+    "longcat-lite": LONGCAT_KEY,
+    "longcat-chat": LONGCAT_KEY,
+    "nvidia-qwen": NVIDIA_KEY,
+    "nvidia-mistral": NVIDIA_KEY,
   };
 
   const availableProviders = providerNames.filter(
@@ -618,6 +737,10 @@ export async function distributedConsensusExtract(
           gemini: callGemini,
           vanchin: callNvidia,
           cerebras: callNvidia,
+          "longcat-lite": callLongcat,
+          "longcat-chat": callLongcatChat,
+          "nvidia-qwen": callNvidiaQwen,
+          "nvidia-mistral": callNvidiaMistral,
         };
 
         const raw = await providerCallsMap[providerName](

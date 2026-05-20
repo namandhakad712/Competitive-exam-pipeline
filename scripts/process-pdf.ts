@@ -771,11 +771,11 @@ async function runExtraction(
     }
 
     // Fall back to consensus extraction
-    const availableProviders: ProviderName[] = ["nvidia", "longcat", "gemini"];
+    const availableProviders: ProviderName[] = ["poolside", "longcat-lite", "nvidia-qwen"];
     const providerKeys: Record<string, string | undefined> = {
-      nvidia: process.env.NVIDIA_API_KEY,
-      longcat: process.env.LONGCAT_API_KEY,
-      gemini: process.env.GEMINI_API_KEY,
+      poolside: process.env.POOLSIDE_API_KEY,
+      "longcat-lite": process.env.LONGCAT_API_KEY,
+      "nvidia-qwen": process.env.NVIDIA_API_KEY,
     };
     const activeProviders = availableProviders.filter(
       (p) => providerKeys[p],

@@ -296,7 +296,17 @@ export interface EnhancedOcrResult {
   answerKeyFoundFromBbox?: boolean;
 }
 
-export type ProviderName = "nvidia" | "longcat" | "poolside" | "vanchin" | "gemini" | "cerebras";
+export type ProviderName =
+  | "nvidia"           // legacy, now nvidia-qwen
+  | "longcat"          // legacy, now longcat-lite
+  | "poolside"         // Unlimited, 131K context
+  | "vanchin"
+  | "gemini"           // 20 RPD, 1M context
+  | "cerebras"         // 2,400 RPD, 65K context
+  | "longcat-lite"     // 50M tokens/day, 256K context
+  | "longcat-chat"     // 500K tokens/day, 256K context
+  | "nvidia-qwen"      // 2,400 RPD, 262K context
+  | "nvidia-mistral";  // 2,400 RPD, multimodal
 
 export interface ConsensusCandidate {
   provider: ProviderName;
