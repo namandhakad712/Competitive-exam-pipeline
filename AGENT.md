@@ -2,7 +2,7 @@
 
 > Agent-agnostic. Any AI reading this can autonomously run the full pipeline.
 > Every file, every command, every error pattern, every loop.
-> Last updated: 2026-05-19
+> Last updated: 2026-05-20
 
 ## 1. Mission
 
@@ -21,8 +21,12 @@ The agent (you) does everything. The user only provides API keys and approves qu
 ```powershell
 cd C:\QUESTION-PIPELINE
 $env:MISTRAL_API_KEY = "sk-..."
+$env:NVIDIA_API_KEY = "nvapi-..."
+$env:LONGCAT_API_KEY = "sk-..."
+$env:POOLSIDE_API_KEY = "..."
+$env:VC_API_KEY = "..."
+$env:GEMINI_API_KEY = "AIzaSy..."
 $env:CEREBRAS_API_KEY = "..."
-$env:GEMINI_API_KEY = "..."
 npm install
 ```
 
@@ -36,7 +40,8 @@ Then ask: *"Which exam and shift? e.g. jeemain 2025 22jan-shift1"*
 C:\QUESTION-PIPELINE\
   plan.md                 1722-line design doc (read for full context)
   AGENT.md                THIS FILE
-  package.json            scripts: scrape, batch, review, signoff, stats, api, export
+  package.json            scripts: scrape, batch, review, signoff, verify, stats, api, export,
+                           test-models, rebuild-index, test
   tsconfig.json
 
   src/
@@ -71,13 +76,15 @@ C:\QUESTION-PIPELINE\
                            Retry: 3x with exponential backoff
                            Error: File too large → split and re-OCR
 
-      structurer.ts        Priority: NVIDIA DeepSeek V4 Flash (40 RPM, 1M ctx) > LongCat Flash Lite (30 RPM, 256K output) >
-                            Poolside (30 RPM, 131K ctx) > Vanchin KAT-Coder (20 RPM) > Gemini 2.5 Flash (5 RPM) >
-                            Cerebras (5 RPM, <=12 pgs). max_tokens varies per provider (64K-256K).
-                            Subject files (physics.json etc) are SPLIT from paper.json — no fresh AI call.
-                            ANTI-HALLUCINATION: scans for answer key → prompts AI → strips if absent → validates.
-                           In: markdown string. Out: Question[] + Passage[]
-                           Error: JSON parse failure → re-prompt with stricter instructions
+      structurer.ts        Priority: NVIDIA Qwen3 Coder 480B (40 RPM, 262K ctx) > LongCat Flash Lite (30 RPM, 256K output) >
+                             Poolside Laguna M.1 (30 RPM, 131K ctx, enable_thinking=false) > Vanchin KAT-Coder (20 RPM) >
+                             Gemini 2.5 Flash (5 RPM) > Cerebras GPT-OSS-120B (5 RPM, <=12 pgs).
+                             Cerebras uses max_completion_tokens (not max_tokens).
+                             LongCat URL: api.longcat.chat/openai/v1/chat/completions (not .ai)
+                             Subject files (physics.json etc) are SPLIT from paper.json — no fresh AI call.
+                             ANTI-HALLUCINATION: scans for answer key → prompts AI → strips if absent → validates.
+                            In: markdown string. Out: Question[] + Passage[]
+                            Error: JSON parse failure → re-prompt with stricter instructions
 
       diagram-cacher.ts    Decodes base64 images from Mistral → PNG files.
                            Tier 1: use Mistral's individual image coordinates.
@@ -150,25 +157,40 @@ C:\QUESTION-PIPELINE\
 
     api/
       server.ts            Native http module (no Express). Port 3456 (configurable via PORT env).
-                           Endpoints:
-                             GET /api/v1/questions?exam=&year=&shift=&subject=&topic=
-                                 &type=&section=&tags=&difficulty=&limit=100&offset=0
-                                 &random=&sort=number&order=asc
-                             GET /api/v1/questions/count
-                             GET /api/v1/exams
-                             GET /api/v1/stats
-                             GET /api/v1/diagrams/:exam/:year/:shift/:path
-                           CORS open (Access-Control-Allow-Origin: *)
+                            Endpoints (live dashboard at http://localhost:3456/dashboard):
+                              GET  /api/v1/events              — SSE real-time stream (status, logs, files, review)
+                              GET  /api/v1/pipeline/status     — Current pipeline state + last 100 logs
+                              GET  /api/v1/pipeline/stages     — List all available stages
+                              POST /api/v1/pipeline/run        — Trigger a pipeline stage (scrape, extract, etc.)
+                              POST /api/v1/pipeline/custom     — Run any shell command (output streams live via SSE)
+                              POST /api/v1/pipeline/stop       — Kill running process
+                              POST /api/v1/review/start        — Start human review session
+                              GET  /api/v1/review/current      — Get current review question
+                              POST /api/v1/review/action       — Accept / edit / skip / flag a question
+                              POST /api/v1/review/cancel       — Cancel review session
+                              GET  /api/v1/files/list          — Real file listing from data/ with metadata
+                              GET  /api/v1/files/tree          — Full directory tree
+                              GET  /api/v1/questions           — Query questions (existing)
+                              GET  /api/v1/questions/count     — Question count (existing)
+                              GET  /api/v1/exams               — Exam list (existing)
+                              GET  /api/v1/stats               — Dataset statistics (existing)
+                              GET  /api/v1/diagrams/:path      — Serve diagram images (existing)
+                              GET  /dashboard                  — Serves dashboard.html UI
+                            CORS open (Access-Control-Allow-Origin: *)
 
     utils/
       pdf-downloader.ts    Downloads PDF with retry (3x), validates PDF magic bytes (%PDF),
                            parallel downloads via Promise.all. DownloadProgress callback.
 
       rate-limiter.ts    Queue + window-based throttling. Configs:
-                           Mistral OCR: 60 req/min (1 RPS enforcement),
-                           Cerebras: 5 req/min (30k TPM),
-                           Gemini: 5 req/min (250k TPM, 20 RPD)
-                           Queue + window-based throttling. RateLimiter class.
+                            Mistral OCR: 60 req/min (1 RPS enforcement),
+                            NVIDIA Qwen3 Coder 480B: 40 req/min,
+                            LongCat Flash Lite: 30 req/min,
+                            Poolside Laguna M.1: 30 req/min,
+                            Vanchin KAT-Coder: 20 req/min,
+                            Gemini 2.5 Flash: 5 req/min (250k TPM, 20 RPD),
+                            Cerebras GPT-OSS-120B: 5 req/min (30k TPM)
+                            Queue + window-based throttling. RateLimiter class.
 
       hash-utils.ts        SHA-256 via crypto.subtle. Functions:
                              computeChecksum(data: string): string
@@ -280,7 +302,18 @@ npx tsx src/finalizers/exporter.ts --exam {exam} --year {year} --shift {shift}
 
 ### Step 8: Human Review Loop (CRITICAL — agent drives this)
 
-Run the CLI review:
+Two options:
+
+**Option A — Web Dashboard (recommended):**
+Start the API server, then open the dashboard:
+```powershell
+npm run api
+# Open http://localhost:3456/dashboard in browser
+# Click "Review" button → enter exam/year/shift → review questions with accept/edit/skip/flag
+```
+
+**Option B — Manual CLI review:**
+Run the CLI review tool:
 
 ```powershell
 npm run review -- --exam {exam} --year {year} --shift {shift}
@@ -393,8 +426,11 @@ npx tsx src/cross-validate/cross-validator.ts --a extracted-cerebras.json --b ex
 
 ```powershell
 $env:MISTRAL_API_KEY             # Required for OCR
-$env:NVIDIA_API_KEY              # Optional — 40 RPM, recommended primary extraction
-$env:CEREBRAS_API_KEY            # Optional — 5 RPM, falls back to NVIDIA
+$env:NVIDIA_API_KEY              # Optional — 40 RPM, Qwen3 Coder 480B, preferred primary extraction
+$env:LONGCAT_API_KEY             # Optional — 30 RPM, 256K output, best for large papers
+$env:POOLSIDE_API_KEY            # Optional — 30 RPM, 131K ctx, requires enable_thinking=false
+$env:VC_API_KEY                  # Optional — 20 RPM, Vanchin KAT-Coder
+$env:CEREBRAS_API_KEY            # Optional — 5 RPM, last resort (max_completion_tokens not max_tokens)
 $env:GEMINI_API_KEY              # Optional — 5 RPM
 $env:LONGCAT_API_KEY             # Optional — 50M tokens
 $env:POOLSIDE_API_KEY            # Optional — poolside/laguna-m.1
@@ -583,7 +619,7 @@ Tombstone: removed IDs never reused
 7. **Checksum = SHA-256 before adding checksum field**
 8. **Human review = accuracy guarantee** — AI 80-95%, validation +5%, human catches rest
 9. **Zero Rankify schema changes** — 30-line adapter
-10. **Free tier only** — Mistral OCR 50k TPM / 1 RPS, NVIDIA DeepSeek V4 Flash 40 RPM / 1M ctx, LongCat Flash Lite 30 RPM / 256K output / 50M tokens, Poolside 30 RPM / 131K ctx, Vanchin KAT-Coder 20 RPM / 2M TPM, Gemini 2.5 Flash 5 RPM, Cerebras gpt-oss-120b 5 RPM / 65K ctx
+10. **Free tier only** — Mistral OCR 50k TPM / 1 RPS, NVIDIA Qwen3 Coder 480B 40 RPM / 262K ctx (primary), LongCat Flash Lite 30 RPM / 256K output / 50M tokens (best for big papers), Poolside Laguna M.1 30 RPM / 131K ctx (enable_thinking=false), Vanchin KAT-Coder 20 RPM / 2M TPM, Gemini 2.5 Flash 5 RPM, Cerebras gpt-oss-120b 5 RPM / 65K ctx (max_completion_tokens)
 11. **No Docker, no database** — JSON files ARE the database
 
 ---
