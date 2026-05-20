@@ -1,5 +1,6 @@
 import { logger } from "../utils/logger.js";
 import type { PartialQuestion, Passage, ProviderName } from "../types.js";
+import { semanticSimilarity } from "../utils/embeddings.js";
 
 export interface ChunkResult {
   chunkIndex: number;
@@ -190,37 +191,41 @@ function pickBetter(
 }
 
 /**
- * Text similarity check for deduplication.
- * Uses simple Jaccard similarity on word sets.
- * When real embedding API is available, replace with cosine similarity.
+ * Text similarity check for deduplication using Mistral embeddings.
+ * Falls back to Jaccard similarity on word sets if embeddings API fails.
  */
-export function textSimilarity(a: string, b: string): number {
-  const wordsA = new Set(
-    a.toLowerCase().split(/\W+/).filter((w) => w.length > 2),
-  );
-  const wordsB = new Set(
-    b.toLowerCase().split(/\W+/).filter((w) => w.length > 2),
-  );
+export async function textSimilarity(a: string, b: string): Promise<number> {
+  try {
+    return await semanticSimilarity(a, b);
+  } catch (err) {
+    logger.warn(`Embeddings failed, using Jaccard: ${err}`);
+    const wordsA = new Set(
+      a.toLowerCase().split(/\W+/).filter((w) => w.length > 2),
+    );
+    const wordsB = new Set(
+      b.toLowerCase().split(/\W+/).filter((w) => w.length > 2),
+    );
 
-  if (wordsA.size === 0 || wordsB.size === 0) return 0;
+    if (wordsA.size === 0 || wordsB.size === 0) return 0;
 
-  let intersection = 0;
-  for (const word of wordsA) {
-    if (wordsB.has(word)) intersection++;
+    let intersection = 0;
+    for (const word of wordsA) {
+      if (wordsB.has(word)) intersection++;
+    }
+
+    const union = new Set([...wordsA, ...wordsB]);
+    return intersection / union.size;
   }
-
-  const union = new Set([...wordsA, ...wordsB]);
-  return intersection / union.size;
 }
 
 /**
  * Detect duplicate questions across chunks using text similarity.
  * Returns question numbers that are likely duplicates.
  */
-export function findDuplicates(
+export async function findDuplicates(
   results: ChunkResult[],
   threshold = 0.8,
-): Array<{ numberA: number; numberB: number; similarity: number }> {
+): Promise<Array<{ numberA: number; numberB: number; similarity: number }>> {
   const duplicates: Array<{
     numberA: number;
     numberB: number;
@@ -234,7 +239,7 @@ export function findDuplicates(
       const b = allQuestions[j];
       if (a.number === b.number) continue; // already handled by merge
 
-      const sim = textSimilarity(a.text, b.text);
+      const sim = await textSimilarity(a.text, b.text);
       if (sim >= threshold) {
         duplicates.push({
           numberA: a.number,

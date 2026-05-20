@@ -100,40 +100,40 @@ describe("mergeChunks", () => {
 });
 
 describe("textSimilarity", () => {
-  it("returns 1 for identical strings", () => {
-    expect(textSimilarity("A particle moves in a circle", "A particle moves in a circle")).toBeCloseTo(1, 2);
+  it("returns 1 for identical strings", async () => {
+    const sim = await textSimilarity("A particle moves in a circle", "A particle moves in a circle");
+    expect(sim).toBeCloseTo(1, 1);
   });
 
-  it("returns medium for somewhat similar strings", () => {
-    const sim = textSimilarity(
+  it("returns medium for somewhat similar strings", async () => {
+    const sim = await textSimilarity(
       "A particle moves in a circle of radius R",
       "A particle moves in a circular path of radius R",
     );
-    // Shared words: a, particle, moves, in, a, circle/circular, of, radius, R
-    expect(sim).toBeGreaterThan(0.4);
+    expect(sim).toBeGreaterThan(0.3);
   });
 
-  it("returns low for different strings", () => {
-    const sim = textSimilarity(
+  it("returns low for different strings", async () => {
+    const sim = await textSimilarity(
       "What is the atomic number of carbon?",
       "A particle moves in a straight line",
     );
-    expect(sim).toBeLessThan(0.3);
+    expect(sim).toBeLessThan(0.4);
   });
 
-  it("returns 0 for empty strings", () => {
-    expect(textSimilarity("", "hello")).toBe(0);
-    expect(textSimilarity("", "")).toBe(0);
+  it("returns 0 for empty strings", async () => {
+    expect(await textSimilarity("", "hello")).toBe(0);
+    expect(await textSimilarity("", "")).toBe(0);
   });
 });
 
 describe("findDuplicates", () => {
-  it("detects duplicate questions across chunks", () => {
+  it("detects duplicate questions across chunks", async () => {
     const commonText = "The value of escape velocity from the surface of a planet depends upon";
     const q1 = makeQ({ number: 1, text: commonText });
     const q2 = makeQ({ number: 7, text: commonText + " the mass and radius of the planet" });
 
-    const result = findDuplicates([
+    const result = await findDuplicates([
       { chunkIndex: 0, questions: [q1], passages: [], answerKeyFound: true },
       { chunkIndex: 1, questions: [q2], passages: [], answerKeyFound: true },
     ], 0.7);
@@ -142,11 +142,11 @@ describe("findDuplicates", () => {
     expect(result[0].similarity).toBeGreaterThan(0.7);
   });
 
-  it("does not flag same-number questions (handled by merge)", () => {
+  it("does not flag same-number questions (handled by merge)", async () => {
     const q1 = makeQ({ number: 1, text: "A particle moves in a circle" });
     const q2 = makeQ({ number: 1, text: "A particle moves in a circle" });
 
-    const result = findDuplicates([
+    const result = await findDuplicates([
       { chunkIndex: 0, questions: [q1], passages: [], answerKeyFound: true },
       { chunkIndex: 1, questions: [q2], passages: [], answerKeyFound: true },
     ]);

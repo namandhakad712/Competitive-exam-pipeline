@@ -59,10 +59,71 @@ async function main() {
         document_url: `data:application/pdf;base64,${pdfBase64}`,
       },
       document_annotation_format: {
-        type: "json_object",
+        type: "json_schema",
+        json_schema: {
+          name: "exam_questions",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              questions: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    number: { type: "number" },
+                    text: { type: "string" },
+                    options: {
+                      type: "array",
+                      items: { type: "string" },
+                    },
+                    answer: { type: "string" },
+                    subject: { type: "string" },
+                  },
+                  required: ["number", "text", "options", "answer"],
+                  additionalProperties: false,
+                },
+              },
+              answer_key_found: { type: "boolean" },
+            },
+            required: ["questions", "answer_key_found"],
+            additionalProperties: false,
+          },
+        },
       },
       document_annotation_prompt:
-        "Extract all questions as JSON array with fields: number, text, options, answer, subject",
+        "Extract all questions from this exam paper as a JSON array. Each question must have: number (the question number), text (the question text), options (array of 4 answer choices), answer (the correct answer if visible in the paper, empty string if not), subject (physics/chemistry/mathematics/biology). Also set answer_key_found to true if any answers are visible in the paper.",
+      bbox_annotation_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "image_descriptions",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              images: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    image_id: { type: "string" },
+                    type: {
+                      type: "string",
+                      enum: ["diagram", "figure", "table", "answer_key", "icon", "other"],
+                    },
+                    description: { type: "string" },
+                    contains_answer_key: { type: "boolean" },
+                  },
+                  required: ["image_id", "type", "description"],
+                  additionalProperties: false,
+                },
+              },
+            },
+            required: ["images"],
+            additionalProperties: false,
+          },
+        },
+      },
       include_image_base64: true,
       pages: [0, 1, 2], // Test first 3 pages only
     }),

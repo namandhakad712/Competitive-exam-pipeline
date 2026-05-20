@@ -352,7 +352,7 @@ Options:
   --shift <shift>          Override shift detection
   --force, -f              Reprocess even if checkpoint exists
   --use-consensus, -c      Use multi-provider consensus extraction (3 providers in parallel)
-  --use-enhanced-ocr, -e   Use Mistral structured annotations (single-call extraction)
+  --use-enhanced-ocr, -e   Use Mistral structured annotations (single-call extraction, default: true)
   --help, -h               Show this help
 
 If --exam/--year/--shift are omitted, they are inferred from the filename.
@@ -408,7 +408,7 @@ If --exam/--year/--shift are omitted, they are inferred from the filename.
   const { exam, year, shift, subjects } = meta;
   const cacheKey = `${exam}/${year}/${shift}`;
   const useConsensus = values["use-consensus"] ?? false;
-  const useEnhancedOcr = values["use-enhanced-ocr"] ?? false;
+  const useEnhancedOcr = values["use-enhanced-ocr"] ?? true;
 
   // Check checkpoint — skip if already processed (unless --force)
   if (!values.force) {
