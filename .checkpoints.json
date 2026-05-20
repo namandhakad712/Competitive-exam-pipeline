@@ -9,28 +9,63 @@
       "biology"
     ],
     "sourceFile": "C:\\QUESTION-PIPELINE\\data\\neet\\2025\\04may-s1\\paper.json",
-    "timestamp": "2026-05-20T13:00:22.967Z",
+    "timestamp": "2026-05-20T13:32:59.919Z",
     "totalQuestions": 180,
     "stages": {
       "ocr": {
         "status": "completed",
-        "timestamp": "2026-05-20T13:00:22.968Z"
+        "timestamp": "2026-05-20T13:32:59.919Z"
       },
       "extract": {
         "status": "completed",
-        "timestamp": "2026-05-20T13:00:22.968Z"
+        "timestamp": "2026-05-20T13:32:59.919Z"
       },
       "diagrams": {
         "status": "completed",
-        "timestamp": "2026-05-20T13:00:22.968Z"
+        "timestamp": "2026-05-20T13:32:59.919Z"
       },
       "validate": {
         "status": "completed",
-        "timestamp": "2026-05-20T13:00:22.968Z"
+        "timestamp": "2026-05-20T13:32:59.919Z"
       },
       "export": {
         "status": "completed",
-        "timestamp": "2026-05-20T13:00:22.968Z"
+        "timestamp": "2026-05-20T13:32:59.919Z"
+      }
+    }
+  },
+  "neet/2023/06jun-s1": {
+    "exam": "neet",
+    "year": 2023,
+    "shift": "06jun-s1",
+    "subjects": [
+      "physics",
+      "chemistry",
+      "biology"
+    ],
+    "sourceFile": "C:\\QUESTION-PIPELINE\\data\\neet\\2023\\06jun-s1\\paper.json",
+    "timestamp": "2026-05-20T14:31:00.188Z",
+    "totalQuestions": 200,
+    "stages": {
+      "ocr": {
+        "status": "completed",
+        "timestamp": "2026-05-20T14:31:00.188Z"
+      },
+      "extract": {
+        "status": "completed",
+        "timestamp": "2026-05-20T14:31:00.188Z"
+      },
+      "diagrams": {
+        "status": "completed",
+        "timestamp": "2026-05-20T14:31:00.188Z"
+      },
+      "validate": {
+        "status": "completed",
+        "timestamp": "2026-05-20T14:31:00.188Z"
+      },
+      "export": {
+        "status": "completed",
+        "timestamp": "2026-05-20T14:31:00.188Z"
       }
     }
   }

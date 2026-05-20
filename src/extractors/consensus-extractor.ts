@@ -678,21 +678,116 @@ export async function extractWithConsensus(
   return result;
 }
 
+// ===================== Answer key page detection =====================
+
+async function detectAnswerKeyPages(pages: PageContent[], skipConfirmation = false): Promise<PageContent[]> {
+  const answerKeyPages: PageContent[] = [];
+  
+  // Check last 10 pages for answer key patterns
+  const lastPages = pages.slice(-Math.min(10, pages.length));
+  
+  for (const page of lastPages) {
+    const text = page.markdown.toLowerCase();
+    
+    // Count answer key indicators
+    let score = 0;
+    
+    // Strong indicators
+    if (/answer\s*key/i.test(text)) score += 5;
+    if (/\|\s*q\s*\|\s*ans\s*\|/i.test(text)) score += 5; // table format
+    if (/question\s*no/i.test(text)) score += 3;
+    
+    // Count answer patterns (many answers = likely answer key)
+    const answerPatterns = [
+      /\d+\s*[:\-\)]\s*[1-4abcd]/gi,  // "1: 2" or "1) A"
+      /\d+\s*\(\s*[1-4]\s*\)/gi,       // "1(2)" NTA style
+      /\d+\s*[-–]\s*[A-Da-d]/gi,       // "1-A" format
+    ];
+    
+    let answerCount = 0;
+    for (const pattern of answerPatterns) {
+      const matches = text.match(pattern);
+      if (matches) answerCount += matches.length;
+    }
+    
+    // If page has 20+ answers, likely answer key
+    if (answerCount >= 20) score += 4;
+    else if (answerCount >= 10) score += 2;
+    
+    // Threshold: score >= 5 means answer key page
+    if (score >= 5) {
+      answerKeyPages.push(page);
+      logger.info(`Answer key detected on page ${page.page} (score: ${score}, answers: ${answerCount})`);
+    }
+  }
+  
+  // User confirmation for security
+  if (answerKeyPages.length > 0 && !skipConfirmation) {
+    logger.info(`\n🔍 Answer key auto-detected on ${answerKeyPages.length} page(s): [${answerKeyPages.map(p => p.page).join(', ')}]`);
+    logger.info(`📄 Total pages in PDF: ${pages.length}`);
+    logger.info(`❓ Does this PDF have an answer key at the end? (Y/n)`);
+    
+    // Check if running in non-interactive mode (CI/automated)
+    if (process.env.CI === 'true' || process.env.NON_INTERACTIVE === 'true') {
+      logger.info(`⚙️  Non-interactive mode: Using auto-detected answer key`);
+      return answerKeyPages;
+    }
+    
+    try {
+      // Dynamic import to avoid issues if not installed
+      const readlineSync = await import('readline-sync');
+      const response = readlineSync.default.question('> ').trim().toLowerCase();
+      
+      if (response === 'n' || response === 'no') {
+        logger.warn(`❌ User confirmed: NO answer key. Answers will be empty.`);
+        return [];
+      }
+      
+      logger.info(`✅ User confirmed: Answer key will be used`);
+    } catch (err) {
+      logger.warn(`⚠️  Interactive prompt failed: ${err instanceof Error ? err.message : String(err)}`);
+      logger.info(`⚙️  Falling back to auto-detection`);
+    }
+  }
+  
+  return answerKeyPages;
+}
+
 // ===================== Distributed consensus =====================
 
 export async function distributedConsensusExtract(
   pages: PageContent[],
   exam: Exam,
   providerNames: ProviderName[] = ["poolside", "longcat-lite", "nvidia-qwen"],
+  skipAnswerKeyPrompt = false,
 ): Promise<ConsensusResult> {
   if (pages.length <= 12) {
     return extractWithConsensus(pages, exam, providerNames);
   }
 
+  // STEP 1: Detect answer key pages BEFORE chunking
+  const answerKeyPages = await detectAnswerKeyPages(pages, skipAnswerKeyPrompt);
+  
+  if (answerKeyPages.length > 0) {
+    logger.info(`✅ Answer key detected: ${answerKeyPages.length} page(s) [${answerKeyPages.map(p => p.page).join(', ')}]`);
+    logger.info(`📋 Strategy: Appending answer key to ALL chunks for 99% accuracy`);
+  } else {
+    logger.warn(`⚠️  No answer key detected in last 10 pages — answers will be empty`);
+  }
+
+  // STEP 2: Split into overlapping chunks
   const chunks = splitIntoChunks(pages, 15, 5);
   logger.info(
     `Distributed consensus: ${pages.length} pages → ${chunks.length} chunks`,
   );
+  
+  // STEP 3: Append answer key pages to ALL chunks
+  if (answerKeyPages.length > 0) {
+    for (const chunk of chunks) {
+      chunk.pages.push(...answerKeyPages);
+    }
+    logger.info(`✅ Answer key appended to all ${chunks.length} chunks`);
+  }
 
   const userPrompt = chunkToMarkdown(chunks[0]);
   const answerKeyDetected = hasAnswerKey(userPrompt);

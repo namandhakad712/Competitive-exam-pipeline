@@ -326,6 +326,7 @@ export async function main(
       force: { type: "boolean", short: "f" },
       "use-consensus": { type: "boolean", short: "c" },
       "use-enhanced-ocr": { type: "boolean", short: "e" },
+      "skip-answer-key-prompt": { type: "boolean" },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -353,9 +354,19 @@ Options:
   --force, -f              Reprocess even if checkpoint exists
   --use-consensus, -c      Use multi-provider consensus extraction (3 providers in parallel)
   --use-enhanced-ocr, -e   Use Mistral structured annotations (single-call extraction, default: true)
+  --skip-answer-key-prompt Skip interactive answer key confirmation (auto-accept detection)
   --help, -h               Show this help
 
+Environment Variables:
+  CI=true                  Non-interactive mode (skips all prompts)
+  NON_INTERACTIVE=true     Non-interactive mode (skips all prompts)
+
 If --exam/--year/--shift are omitted, they are inferred from the filename.
+
+Answer Key Detection:
+  The pipeline automatically detects answer keys at the end of PDFs.
+  When detected, you'll be prompted to confirm (Y/n).
+  Use --skip-answer-key-prompt or set CI=true to skip the prompt.
 `);
     process.exit(0);
   }
@@ -409,6 +420,7 @@ If --exam/--year/--shift are omitted, they are inferred from the filename.
   const cacheKey = `${exam}/${year}/${shift}`;
   const useConsensus = values["use-consensus"] ?? false;
   const useEnhancedOcr = values["use-enhanced-ocr"] ?? true;
+  const skipAnswerKeyPrompt = values["skip-answer-key-prompt"] ?? false;
 
   // Check checkpoint — skip if already processed (unless --force)
   if (!values.force) {
@@ -541,6 +553,7 @@ If --exam/--year/--shift are omitted, they are inferred from the filename.
         exam,
         mergedText,
         useConsensus,
+        skipAnswerKeyPrompt,
       );
       logger.info(`  ${extraction.questions.length} questions extracted`);
       logger.info(
@@ -713,6 +726,7 @@ async function runExtraction(
   exam: Exam,
   mergedText: string | null,
   useConsensus: boolean,
+  skipAnswerKeyPrompt: boolean,
 ): Promise<{
   questions: PartialQuestion[];
   passages: Passage[];
@@ -790,6 +804,7 @@ async function runExtraction(
           sourcePages,
           exam,
           activeProviders,
+          skipAnswerKeyPrompt,
         );
         return {
           questions: result.questions,
@@ -812,7 +827,7 @@ async function runExtraction(
 
   // Single-provider extraction (original behavior)
   if (sourcePages.length > 12 && !mergedText) {
-    return distributedExtract(sourcePages, exam);
+    return distributedExtract(sourcePages, exam, skipAnswerKeyPrompt);
   }
   return extractQuestions(sourcePages, exam);
 }

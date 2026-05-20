@@ -26,6 +26,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/readline-sync": "^1.4.8",
+    "readline-sync": "^1.4.10",
     "typescript": "^5.7.0",
     "vitest": "^4.1.7"
   }
