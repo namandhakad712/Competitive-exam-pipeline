@@ -9,7 +9,7 @@ dist
 dist-*/
 **/jiti/
 **/node-compile-cache/
-/input
+
 
 # Node dependencies
 node_modules
