@@ -162,10 +162,10 @@ C:\QUESTION-PIPELINE\
       pdf-downloader.ts    Downloads PDF with retry (3x), validates PDF magic bytes (%PDF),
                            parallel downloads via Promise.all. DownloadProgress callback.
 
-      rate-limiter.ts      Free-tier rate management:
-                             Mistral: 1000 pages/min
-                             Cerebras: 60 requests/min, 65k context
-                             Gemini: 60 requests/min, 1000 requests/day
+      rate-limiter.ts    Queue + window-based throttling. Configs:
+                           Mistral OCR: 60 req/min (1 RPS enforcement),
+                           Cerebras: 5 req/min (30k TPM),
+                           Gemini: 5 req/min (250k TPM, 20 RPD)
                            Queue + window-based throttling. RateLimiter class.
 
       hash-utils.ts        SHA-256 via crypto.subtle. Functions:
@@ -577,7 +577,7 @@ Tombstone: removed IDs never reused
 7. **Checksum = SHA-256 before adding checksum field**
 8. **Human review = accuracy guarantee** — AI 80-95%, validation +5%, human catches rest
 9. **Zero Rankify schema changes** — 30-line adapter
-10. **Free tier only** — Mistral 1000pg/min, Cerebras 60req/min, Gemini 60req/min/1000day
+10. **Free tier only** — Mistral OCR 50k TPM / 1 RPS, Cerebras 5 req/min / 30k TPM, Gemini 2.5 Flash 5 RPM / 250k TPM / 20 RPD
 11. **No Docker, no database** — JSON files ARE the database
 
 ---

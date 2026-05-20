@@ -44,7 +44,7 @@ export class RateLimiter {
       if (this.timestamps.length >= this.config.maxRequests) {
         const waitMs = this.timestamps[0] + this.config.windowMs - now;
         logger.debug(`Rate limit hit, waiting ${waitMs}ms`);
-        setTimeout(tick, Math.min(waitMs, 10000));
+        setTimeout(tick, Math.min(waitMs, 5000));
         return;
       }
 

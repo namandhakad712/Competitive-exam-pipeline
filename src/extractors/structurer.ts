@@ -3,13 +3,13 @@ import { RateLimiter } from "../utils/rate-limiter.js";
 import type { PageContent, PartialQuestion, Exam, Passage } from "../types.js";
 
 const CEREBRAS_API = "https://api.cerebras.ai/v1/chat/completions";
-const GEMINI_API = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+const GEMINI_API = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
 const CEREBRAS_KEY = process.env.CEREBRAS_API_KEY ?? "";
 const GEMINI_KEY = process.env.GEMINI_API_KEY ?? "";
 
-const cerebrasLimiter = new RateLimiter({ maxRequests: 60, windowMs: 60_000 });
-const geminiLimiter = new RateLimiter({ maxRequests: 60, windowMs: 60_000 });
+const cerebrasLimiter = new RateLimiter({ maxRequests: 5, windowMs: 60_000 });
+const geminiLimiter = new RateLimiter({ maxRequests: 5, windowMs: 60_000 });
 
 const MAX_PAGES_CEREBRAS = 12;
 

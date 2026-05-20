@@ -7,7 +7,7 @@ const MISTRAL_API = "https://api.mistral.ai/v1/ocr";
 const API_KEY = process.env.MISTRAL_API_KEY ?? "";
 const CHUNK_SIZE_BYTES = 3.5 * 1024 * 1024;
 
-const rateLimiter = new RateLimiter({ maxRequests: 1000, windowMs: 60_000 });
+const rateLimiter = new RateLimiter({ maxRequests: 60, windowMs: 60_000 });
 
 interface MistralOcrPage {
   index: number;
