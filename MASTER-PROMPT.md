@@ -1,7 +1,8 @@
 # MASTER PROMPT — Indian Exam PDF → JSON Dataset
 
-> Copy-paste this entire file into any AI (OpenCode, Cline, Qwen Chat Studio, etc.)
-> The AI must have: web search/fetch, vision (to read PDF pages), and file save capability.
+> Copy-paste this entire file into any AI (OpenCode, Cline, Qwen Chat Studio, Claude, Gemini, etc.)
+> The AI needs: web search/fetch to find PDFs + vision to read pages + file save capability.
+> If you have Mistral OCR API key, you can use it as accelerator (optional, not required).
 > No local codebase needed. This is fully self-contained.
 
 ---
@@ -138,6 +139,9 @@ Use web search to find the exam paper PDF. Download it. Read it visually page by
 
 ### Step 2: Read Every Page Visually
 
+**HOW TO READ THE PDF — use your vision capability.**
+Open the PDF in your vision model and read every page like a human would. Do NOT use external OCR APIs unless explicitly stated below.
+
 **CRITICAL — Answer key detection first:**
 Before extracting questions, scan the ENTIRE PDF for an answer key. Look for:
 - "Answer Key", "ANSWER KEY", "Answer key" heading
@@ -162,9 +166,26 @@ Go through EVERY page of the PDF:
 - Match answers to questions by number
 - Backfill answer fields for questions seen earlier
 
+**⚠️ PDF reading troubleshooting:**
+- PDF won't render? → Try fetching via direct URL vs. Google Drive vs. mirror site
+- Scanned/image-only PDF? → Use your vision to read each page image-by-image
+- Pages are rotated? → Mentally rotate; the content is still there
+- Blurry text? → Search for a cleaner copy or tell user
+- Can't access PDF at all? → Tell user the exact error (blocked, 404, CAPTCHA)
+
+**🔄 Optional: Mistral OCR accelerator (if you have API access)**
+If you have a Mistral API key, you can send the PDF to `https://api.mistral.ai/v1/ocr` for automatic text extraction instead of reading visually. POST the PDF as base64 in `document[].base64`. Response includes per-page markdown + embedded images. Then parse that markdown into JSON. Rate limit: 60 req/min, 50k tokens/min.
+
+**⚠️ PDF reading troubleshooting:**
+- PDF won't render? → Try fetching via direct URL vs. Google Drive vs. mirror site
+- Scanned/image-only PDF? → Use your vision to read each page image-by-image
+- Pages are rotated? → Mentally rotate; the content is still there
+- Blurry text? → Search for a cleaner copy or tell user
+- Can't access PDF at all? → Tell user the exact error (blocked, 404, CAPTCHA)
+
 ### Step 3: Extract to JSON
 
-Use your best text-to-text AI model (NVIDIA NIM 40 RPM, Poolside, Vanchin KAT-Coder, LongCat 50M tokens, Cerebras, Gemini — whichever you have API access to) to parse the raw text into structured JSON. Send the full OCR text with a system prompt containing the schema below.
+Now structure everything you read into the JSON schema above. Do this using your own text processing capability — no external APIs needed. You have all the information from reading the PDF visually. Simply organize it into the specified JSON format.
 
 | Field | How to determine |
 |---|---|
