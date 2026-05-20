@@ -44,3 +44,14 @@ if (!commands[cmd]) {
 
 logger.info(`Running: ${cmd}`);
 logger.debug(`Args: ${args.join(" ")}`);
+
+const filePath = commands[cmd];
+
+try {
+  const mod = await import(`../${filePath.replace(/\.ts$/, ".js")}`);
+  if (typeof mod.main === "function") await mod.main(args);
+  else if (typeof mod.default === "function") await mod.default(args);
+} catch (err) {
+  logger.error(`Command failed: ${err instanceof Error ? err.message : String(err)}`);
+  process.exit(1);
+}
