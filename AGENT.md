@@ -81,26 +81,43 @@ C:\QUESTION-PIPELINE\
 
     extractors/
       ocr-stage.ts         Mistral OCR. Chunks >3.5MB PDFs.
-                           In: PDF path. Out: { pages: [{markdown, images: [{id,base64}]}] }
-                           Retry: 3x with exponential backoff
-                           Error: File too large → split and re-OCR
+                            In: PDF path. Out: { pages: [{markdown, images: [{id,base64}]}] }
+                            Retry: 3x with exponential backoff
+                            Error: File too large → split and re-OCR
+                            Two modes:
+                              - ocrPdf(): standard OCR (returns OcrResult)
+                              - enhancedOcrPdf(): +structured annotations via Mistral document_annotation_format
+                                with JSON schemas for exam_questions + answer_key detection + bbox_annotation.
+                                Returns EnhancedOcrResult with structuredAnnotation and bboxAnnotation fields.
+                                Automatically enabled in process-pdf.ts (--use-enhanced-ocr / -e).
 
       structurer.ts        Single-provider + distributedExtract(). Priority: NVIDIA > LongCat > Poolside > Vanchin > Gemini > Cerebras.
-                           For >12 pages: splits into overlapping 15-page chunks (5-page overlap), assigns providers round-robin in
-                           parallel, retries failed chunks with next provider. Results merged + deduplicated by merger.ts.
+                            For >12 pages: splits into overlapping 15-page chunks (5-page overlap), assigns providers round-robin in
+                            parallel, retries failed chunks with next provider. Results merged + deduplicated by merger.ts.
       chunker.ts           splitIntoChunks(pages, 15, 5) → overlapping page groups. Guarantees no question spans across chunks.
       merger.ts            mergeChunks() — dedup by Q number. Prefers: non-empty answer > longer options > earlier chunk.
-      ocr-stage.ts         Mistral OCR — returns page-by-page markdown + base64 images.
-                             Cerebras uses max_completion_tokens (not max_tokens).
-                             LongCat URL: api.longcat.chat/openai/v1/chat/completions (not .ai)
-                             Subject files (physics.json etc) are SPLIT from paper.json — no fresh AI call.
-                             ANTI-HALLUCINATION: scans for answer key → prompts AI → strips if absent → validates.
-                            In: markdown string. Out: Question[] + Passage[]
-                            Error: JSON parse failure → re-prompt with stricter instructions
+                            textSimilarity() uses Mistral embeddings API via src/utils/embeddings.ts,
+                            falls back to Jaccard word-set similarity when API unavailable.
+      consensus-extractor.ts Multi-provider consensus extraction.
+                            extractWithConsensus(pages, exam, providers) runs 3 providers in parallel,
+                            majority-vote per field, builds ConsensusResult with confidence scores
+                            (high ≥0.8, medium ≥0.5, low) and conflict detection.
+                            distributedConsensusExtract() for >12-page PDFs.
+      progressive-review.ts Chunk-by-chunk human-in-loop review.
+                            progressiveExtract() shows sample question after each chunk,
+                            prompts [c]ontinue/[r]etry/[a]bort. Falls back to non-interactive
+                            when !process.stdin.isTTY.
+      auto-repair.ts        validateExtraction() checks question count, missing answers, invalid option counts.
+                            autoRepair() re-extracts answer key pages, repairOptions() splits merged options,
+                            re-extracts with strict prompt on count mismatch.
 
       diagram-cacher.ts    Decodes base64 images from Mistral → PNG files.
-                           Saves to: {shiftDir}/diagrams/{subject}/q{number}-fig{n}.png
-                           (shiftDir = data/{exam}/{year}/{shift}/) — per-shift, not global.
+                            Two modes:
+                              - Legacy: page-level images from Mistral OCR
+                              - Mistral-aware: uses pre-extracted images from enhanced OCR, links via
+                                image references in markdown (findImageById()), preserves bbox coordinates.
+                            Saves to: {shiftDir}/diagrams/{subject}/q{number}-fig{n}.png
+                            (shiftDir = data/{exam}/{year}/{shift}/) — per-shift, not global.
 
     validators/
       field-checker.ts     Type-specific rules per QuestionType:
@@ -197,28 +214,44 @@ C:\QUESTION-PIPELINE\
 
     utils/
       pdf-downloader.ts    Downloads PDF with retry (3x), validates PDF magic bytes (%PDF),
-                           parallel downloads via Promise.all. DownloadProgress callback.
+                            parallel downloads via Promise.all. DownloadProgress callback.
 
       rate-limiter.ts    Queue + window-based throttling. Configs:
-                            Mistral OCR: 60 req/min (1 RPS enforcement),
-                            NVIDIA Qwen3 Coder 480B: 40 req/min,
-                            LongCat Flash Lite: 30 req/min,
-                            Poolside Laguna M.1: 30 req/min,
-                            Vanchin KAT-Coder: 20 req/min,
-                            Gemini 2.5 Flash: 5 req/min (250k TPM, 20 RPD),
-                            Cerebras GPT-OSS-120B: 5 req/min (30k TPM)
-                            Queue + window-based throttling. RateLimiter class.
+                             Mistral OCR: 60 req/min (1 RPS enforcement),
+                             NVIDIA Qwen3 Coder 480B: 40 req/min,
+                             LongCat Flash Lite: 30 req/min,
+                             Poolside Laguna M.1: 30 req/min,
+                             Vanchin KAT-Coder: 20 req/min,
+                             Gemini 2.5 Flash: 5 req/min (250k TPM, 20 RPD),
+                             Cerebras GPT-OSS-120B: 5 req/min (30k TPM)
+                             Queue + window-based throttling. RateLimiter class.
+
+      embeddings.ts        Mistral embeddings API client.
+                            embed(text) → number[] with rate limiting (60 req/min) and LRU cache.
+                            cosineSimilarity(a, b) → number (dot product / magnitude product).
+                            semanticSimilarity(a, b) → number (embeds both texts, compares).
+                            Used by merger.ts for semantic deduplication.
+
+      metrics.ts           Accuracy tracking against golden dataset.
+                            computeMetrics(extracted, golden) → MetricsReport with per-field accuracy.
+                            compareProviders(results) → inter-provider agreement matrix.
+                            saveMetric() / loadMetrics() for historical comparison.
+                            getAccuracyTrends() across all runs.
+
+      checkpoints.ts       Stage-level tracking (ocr/extract/diagrams/validate/export).
+                            saveStageCache() / loadStageCache() for intermediate results.
+                            getResumePoint() for failure resume.
 
       hash-utils.ts        SHA-256 via crypto.subtle. Functions:
-                             computeChecksum(data: string): string
-                             verifyChecksum(data: string, expected: string): boolean
+                              computeChecksum(data: string): string
+                              verifyChecksum(data: string, expected: string): boolean
 
       logger.ts            Structured logging: info, warn, error, debug.
-                           Respects LOG_LEVEL env var (debug|info|warn|error).
+                            Respects LOG_LEVEL env var (debug|info|warn|error).
 
       integrity.ts         Walks data/ and verifies SHA-256 checksums on all paper.json files.
-                           Returns: { totalFiles, passed, failed, missing }
-                           Verify every time before accepting a dataset as clean.
+                            Returns: { totalFiles, passed, failed, missing }
+                            Verify every time before accepting a dataset as clean.
 
     adapters/
       rankify-adapter.ts   Converts canonical Question → Rankify TestSessionQuestionData.
@@ -412,6 +445,15 @@ npm run process-pdf -- --input "C:/path/to/question-paper.pdf" --answer-key "C:/
 
 # If filename doesn't match expected patterns, specify manually:
 npm run process-pdf -- --input "my-paper.pdf" --exam jeemain --year 2025 --shift "22jan-s1"
+
+# Enhanced OCR with structured annotations (default on):
+npm run process-pdf -- --input "paper.pdf" --use-enhanced-ocr
+
+# Multi-provider consensus extraction (3 providers in parallel):
+npm run process-pdf -- --input "paper.pdf" --use-consensus
+
+# Full power: consensus + enhanced OCR:
+npm run process-pdf -- --input "paper.pdf" -c -e
 ```
 
 ### Filename patterns the parser understands
@@ -567,6 +609,17 @@ npm run scrape -- --exam jeeadv --year 2024
 
 # Full pipeline (scrape + OCR + extract + finalize)
 npm run batch -- --exam jeemain --year 2025 --shift 22jan-shift1
+
+# Process PDF manually with enhanced OCR and consensus
+npm run process-pdf -- --input "input/neet-2025-04may-s1.pdf"
+npm run process-pdf -- --input "input/neet-2025-04may-s1.pdf" --use-consensus   # 3-provider consensus
+npm run process-pdf -- --input "input/neet-2025-04may-s1.pdf" -c -e             # consensus + enhanced OCR
+
+# Test Mistral structured annotations (check if API returns correct format)
+npm run test-mistral -- "input/neet-2025-04may-s1.pdf"
+
+# Full pipeline test (end-to-end verification)
+npm run test-full-pipeline -- "input/neet-2025-04may-s1.pdf"
 
 # Individual stages (when batch fails)
 npx tsx src/extractors/ocr-stage.ts --input data/jeemain/raw/jeemain-2025-22jan-s1.pdf --output data/jeemain/ocr/

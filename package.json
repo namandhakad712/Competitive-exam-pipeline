@@ -20,7 +20,9 @@
     "api": "npx tsx --env-file=.env src/api/server.ts",
     "test-models": "npx tsx --env-file=.env scripts/test-models.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test-mistral": "npx tsx --env-file=.env scripts/test-mistral-structured.ts",
+    "test-full-pipeline": "npx tsx --env-file=.env scripts/test-full-pipeline.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
