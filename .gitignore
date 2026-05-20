@@ -5,6 +5,7 @@ ha# Nuxt dev/build outputs
 .nitro
 .cache
 dist
+.vscode
 dist-*/
 **/jiti/
 **/node-compile-cache/
@@ -26,4 +27,3 @@ logs
 .env
 .env.*
 !.env.example
-LAST-SESSION-TRANSCRIPT.md
