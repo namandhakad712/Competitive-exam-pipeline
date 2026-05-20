@@ -156,7 +156,9 @@ function parseExtractionResponse(raw: string, answerKeyDetected: boolean): Extra
     }
   }
 
-  return { questions: safeQuestions, passages, rawResponse: raw, answerKeyFound: answerKeyDetected };
+  const normalized = normalizeQuestions(safeQuestions);
+
+  return { questions: normalized, passages, rawResponse: raw, answerKeyFound: answerKeyDetected };
 }
 
 // ===================== Provider implementations =====================
@@ -532,10 +534,43 @@ export async function distributedExtract(
   const merged = mergeChunks(chunkResults);
   logger.info(`Distributed: ${chunks.length} chunks → ${merged.questions.length} total questions`);
 
+  const normalized = normalizeQuestions(merged.questions);
+
   return {
-    questions: merged.questions,
+    questions: normalized,
     passages: merged.passages,
     rawResponse: JSON.stringify(chunkResults.map(r => `${r.chunkIndex}:${r.questions.length}q`)),
     answerKeyFound: merged.answerKeyFound,
   };
+}
+
+const LETTER_TO_INDEX: Record<string, string> = { a:"0", b:"1", c:"2", d:"3", e:"4" };
+
+function normalizeQuestions(questions: PartialQuestion[]): PartialQuestion[] {
+  return questions.map(q => {
+    // Coerce number to integer
+    const number = typeof q.number === "string" ? parseInt(q.number, 10) : q.number;
+
+    // Normalize answer format
+    let answer = q.answer ?? "";
+    if (answer && answer !== "") {
+      const trimmed = answer.trim().toLowerCase();
+      // Letter answer → index
+      if (LETTER_TO_INDEX[trimmed] !== undefined) {
+        answer = LETTER_TO_INDEX[trimmed];
+      }
+      // 1-based numeric → 0-based (for 4-option MCQs)
+      if (["1", "2", "3", "4"].includes(trimmed) && q.options && q.options.length === 4) {
+        answer = String(parseInt(trimmed, 10) - 1);
+      }
+    }
+
+    // Assertion-reason: strip options
+    let options = q.options;
+    if (q.type === "assertion-reason") {
+      options = null;
+    }
+
+    return { ...q, number, answer, options };
+  });
 }

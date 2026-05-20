@@ -106,10 +106,13 @@ export async function batchProcess(config: BatchConfig): Promise<boolean> {
     // Step 4: Cache diagrams
     logger.info("Step 4/5: Caching diagrams...");
     const DATA_DIR = join(process.cwd(), "data");
+    const shiftDir = exam === "ncert-exemplar"
+      ? join(DATA_DIR, exam, `class-${year}`)
+      : join(DATA_DIR, exam, String(year ?? "unknown"), shift ?? "unknown");
     await cacheDiagrams({
       questions: extraction.questions,
       images: ocrOutput.images,
-      outputDir: DATA_DIR,
+      shiftDir,
     });
 
     // Step 5: Finalize and export

@@ -140,14 +140,7 @@ export async function writeDataset(
 
   await mkdir(shiftDir, { recursive: true });
 
-  const subjectPaths: string[] = [];
-
-  // Write paper.json
-  const paperPath = join(shiftDir, "paper.json");
-  await writeFile(paperPath, JSON.stringify(file, null, 2), "utf8");
-  logger.info(`Exported: ${paperPath}`);
-
-  // Write subject-split files
+  // Group questions by subject
   const subjectGroups: Record<string, Question[]> = {};
   for (const q of file.questions) {
     const subj = q.subject;
@@ -155,6 +148,8 @@ export async function writeDataset(
     subjectGroups[subj].push(q);
   }
 
+  // Write subject files FIRST (primary output)
+  const subjectPaths: string[] = [];
   for (const [subj, subjQuestions] of Object.entries(subjectGroups)) {
     const renumbered = subjQuestions.map((q, i) => ({
       ...q,
@@ -173,6 +168,11 @@ export async function writeDataset(
     subjectPaths.push(subjPath);
     logger.info(`Exported: ${subjPath}`);
   }
+
+  // Write paper.json SECONDARY (merged from subjects)
+  const paperPath = join(shiftDir, "paper.json");
+  await writeFile(paperPath, JSON.stringify(file, null, 2), "utf8");
+  logger.info(`Exported: ${paperPath}`);
 
   // Update index.json
   await updateIndex(baseDir, file);

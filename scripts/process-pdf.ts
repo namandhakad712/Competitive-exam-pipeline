@@ -248,6 +248,9 @@ Examples:
     }
   }
   const dataDir = join(process.cwd(), "data");
+  const shiftDir = exam === "ncert-exemplar"
+    ? join(dataDir, exam, `class-${year}`)
+    : join(dataDir, exam, String(year ?? "unknown"), shift ?? "unknown");
 
   logger.info(`╔══════════════════════════════════════════╗`);
   logger.info(`║  Manual PDF Processing                   ║`);
@@ -300,7 +303,7 @@ Examples:
     await cacheDiagrams({
       questions: extraction.questions,
       images: ocrOutput.images,
-      outputDir: dataDir,
+      shiftDir,
     });
     logger.info(`  Diagrams cached`);
 

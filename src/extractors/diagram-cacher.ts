@@ -1,12 +1,12 @@
 import { mkdir, writeFile } from "fs/promises";
-import { join, dirname } from "path";
+import { join } from "path";
 import { logger } from "../utils/logger.js";
 import type { PartialQuestion, Diagram, CropCoords } from "../types.js";
 
 interface CacheDiagramsInput {
   questions: PartialQuestion[];
   images: Map<number, string>;
-  outputDir: string;
+  shiftDir: string;
   cropCoords?: Map<string, CropCoords>;
 }
 
@@ -20,13 +20,13 @@ function decodeBase64Image(base64: string): Buffer {
 }
 
 export async function cacheDiagrams(input: CacheDiagramsInput): Promise<void> {
-  const { questions, images, outputDir, cropCoords } = input;
+  const { questions, images, shiftDir, cropCoords } = input;
 
   for (const q of questions) {
     if (!q.hasDiagram || !q.number) continue;
 
     const subjectDir = q.subject ?? "unknown";
-    const diagDir = join(outputDir, "diagrams", subjectDir);
+    const diagDir = join(shiftDir, "diagrams", subjectDir);
     await mkdir(diagDir, { recursive: true });
 
     const diagramList: Diagram[] = [];

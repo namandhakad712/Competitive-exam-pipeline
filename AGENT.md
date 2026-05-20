@@ -85,9 +85,12 @@ C:\QUESTION-PIPELINE\
                            Retry: 3x with exponential backoff
                            Error: File too large → split and re-OCR
 
-      structurer.ts        Priority: NVIDIA Qwen3 Coder 480B (40 RPM, 262K ctx) > LongCat Flash Lite (30 RPM, 256K output) >
-                             Poolside Laguna M.1 (30 RPM, 131K ctx, enable_thinking=false) > Vanchin KAT-Coder (20 RPM) >
-                             Gemini 2.5 Flash (5 RPM) > Cerebras GPT-OSS-120B (5 RPM, <=12 pgs).
+      structurer.ts        Single-provider + distributedExtract(). Priority: NVIDIA > LongCat > Poolside > Vanchin > Gemini > Cerebras.
+                           For >12 pages: splits into overlapping 15-page chunks (5-page overlap), assigns providers round-robin in
+                           parallel, retries failed chunks with next provider. Results merged + deduplicated by merger.ts.
+      chunker.ts           splitIntoChunks(pages, 15, 5) → overlapping page groups. Guarantees no question spans across chunks.
+      merger.ts            mergeChunks() — dedup by Q number. Prefers: non-empty answer > longer options > earlier chunk.
+      ocr-stage.ts         Mistral OCR — returns page-by-page markdown + base64 images.
                              Cerebras uses max_completion_tokens (not max_tokens).
                              LongCat URL: api.longcat.chat/openai/v1/chat/completions (not .ai)
                              Subject files (physics.json etc) are SPLIT from paper.json — no fresh AI call.
