@@ -25,3 +25,4 @@ logs
 .env
 .env.*
 !.env.example
+LAST-SESSION-TRANSCRIPT.md

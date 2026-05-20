@@ -6,9 +6,9 @@ import type { PageContent, PartialQuestion, Exam, Passage } from "../types.js";
 const NVIDIA_API = "https://integrate.api.nvidia.com/v1/chat/completions";
 const CEREBRAS_API = "https://api.cerebras.ai/v1/chat/completions";
 const GEMINI_API = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
-const LONGCAT_API = "https://api.longcat.ai/v1/chat/completions";
+const LONGCAT_API = "https://api.longcat.chat/openai/v1/chat/completions";
 const POOLSIDE_API = "https://inference.poolside.ai/v1/chat/completions";
-const VANCHIN_API = "https://vanchin.streamlake.ai/api/gateway/v1/endpoints";
+const VANCHIN_API = "https://vanchin.streamlake.ai/api/gateway/v1/endpoints/chat/completions";
 
 // ---- API keys ----
 const NVIDIA_KEY = process.env.NVIDIA_API_KEY ?? "";
@@ -24,9 +24,7 @@ const cerebrasLimiter = new RateLimiter({ maxRequests: 5, windowMs: 60_000 });
 const geminiLimiter = new RateLimiter({ maxRequests: 5, windowMs: 60_000 });
 const longcatLimiter = new RateLimiter({ maxRequests: 30, windowMs: 60_000 });
 const poolsideLimiter = new RateLimiter({ maxRequests: 30, windowMs: 60_000 });
-const vanchinLimiter = new RateLimiter({ maxRequests: 30, windowMs: 60_000 });
-
-const MAX_PAGES_CEREBRAS = 12;
+const vanchinLimiter = new RateLimiter({ maxRequests: 20, windowMs: 60_000 });
 
 interface ExtractionResult {
   questions: PartialQuestion[];
@@ -146,7 +144,6 @@ function parseExtractionResponse(raw: string, answerKeyDetected: boolean): Extra
     ? parsed.passages
     : [];
 
-  // Safety: if no answer key was detected, strip ALL answers the AI may have hallucinated
   const safeQuestions = answerKeyDetected ? questions : stripAllAnswers(questions);
 
   if (!answerKeyDetected && questions.length > 0) {
@@ -160,6 +157,7 @@ function parseExtractionResponse(raw: string, answerKeyDetected: boolean): Extra
 }
 
 // ===================== Provider implementations =====================
+// Ordered by priority: speed + output capacity + rate limits
 
 async function callNvidia(prompt: string, systemPrompt: string): Promise<string> {
   return nvidiaLimiter.call(async () => {
@@ -170,13 +168,13 @@ async function callNvidia(prompt: string, systemPrompt: string): Promise<string>
         Authorization: `Bearer ${NVIDIA_KEY}`,
       },
       body: JSON.stringify({
-        model: "meta-llama/llama-4-scout-17b-16e-instruct",
+        model: "deepseek-ai/deepseek-v4-flash",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: prompt },
         ],
         temperature: 0.1,
-        max_tokens: 32000,
+        max_tokens: 64000,
       }),
     });
 
@@ -192,28 +190,91 @@ async function callNvidia(prompt: string, systemPrompt: string): Promise<string>
   });
 }
 
-async function callCerebras(prompt: string, systemPrompt: string): Promise<string> {
-  return cerebrasLimiter.call(async () => {
-    const response = await fetch(CEREBRAS_API, {
+async function callLongcat(prompt: string, systemPrompt: string): Promise<string> {
+  return longcatLimiter.call(async () => {
+    const response = await fetch(LONGCAT_API, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${CEREBRAS_KEY}`,
+        Authorization: `Bearer ${LONGCAT_KEY}`,
       },
       body: JSON.stringify({
-        model: "cerebras-llama-3.3-70b",
+        model: "LongCat-Flash-Lite",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: prompt },
         ],
         temperature: 0.1,
-        max_tokens: 32000,
+        max_tokens: 256000,
       }),
     });
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");
-      throw new Error(`Cerebras API ${response.status}: ${body.slice(0, 200)}`);
+      throw new Error(`LongCat API ${response.status}: ${body.slice(0, 200)}`);
+    }
+
+    const data = (await response.json()) as {
+      choices: Array<{ message: { content: string } }>;
+    };
+    return data.choices?.[0]?.message?.content ?? "";
+  });
+}
+
+async function callPoolside(prompt: string, systemPrompt: string): Promise<string> {
+  return poolsideLimiter.call(async () => {
+    const response = await fetch(POOLSIDE_API, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${POOLSIDE_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "poolside/laguna-m.1",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.1,
+        max_tokens: 64000,
+        chat_template_kwargs: { enable_thinking: false },
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`Poolside API ${response.status}: ${body.slice(0, 200)}`);
+    }
+
+    const data = (await response.json()) as {
+      choices: Array<{ message: { content: string } }>;
+    };
+    return data.choices?.[0]?.message?.content ?? "";
+  });
+}
+
+async function callVanchin(prompt: string, systemPrompt: string): Promise<string> {
+  return vanchinLimiter.call(async () => {
+    const response = await fetch(VANCHIN_API, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${VANCHIN_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "ep-8jt098-1774548880917375225",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.1,
+        max_tokens: 64000,
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`Vanchin API ${response.status}: ${body.slice(0, 200)}`);
     }
 
     const data = (await response.json()) as {
@@ -256,91 +317,28 @@ async function callGemini(prompt: string, systemPrompt: string): Promise<string>
   });
 }
 
-async function callLongcat(prompt: string, systemPrompt: string): Promise<string> {
-  return longcatLimiter.call(async () => {
-    const response = await fetch(LONGCAT_API, {
+async function callCerebras(prompt: string, systemPrompt: string): Promise<string> {
+  return cerebrasLimiter.call(async () => {
+    const response = await fetch(CEREBRAS_API, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${LONGCAT_KEY}`,
+        Authorization: `Bearer ${CEREBRAS_KEY}`,
       },
       body: JSON.stringify({
-        model: "longcat-flash-lite",
+        model: "gpt-oss-120b",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: prompt },
         ],
         temperature: 0.1,
-        max_tokens: 32000,
+        max_completion_tokens: 32000,
       }),
     });
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");
-      throw new Error(`LongCat API ${response.status}: ${body.slice(0, 200)}`);
-    }
-
-    const data = (await response.json()) as {
-      choices: Array<{ message: { content: string } }>;
-    };
-    return data.choices?.[0]?.message?.content ?? "";
-  });
-}
-
-async function callPoolside(prompt: string, systemPrompt: string): Promise<string> {
-  return poolsideLimiter.call(async () => {
-    const response = await fetch(POOLSIDE_API, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${POOLSIDE_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "poolside/laguna-m.1",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: prompt },
-        ],
-        temperature: 0.1,
-        max_tokens: 32000,
-        chat_template_kwargs: { enable_thinking: false },
-      }),
-    });
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(`Poolside API ${response.status}: ${body.slice(0, 200)}`);
-    }
-
-    const data = (await response.json()) as {
-      choices: Array<{ message: { content: string } }>;
-    };
-    return data.choices?.[0]?.message?.content ?? "";
-  });
-}
-
-async function callVanchin(prompt: string, systemPrompt: string): Promise<string> {
-  return vanchinLimiter.call(async () => {
-    const response = await fetch(VANCHIN_API, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${VANCHIN_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "ep-8jt098-1774548880917375225",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: prompt },
-        ],
-        temperature: 0.1,
-        max_tokens: 32000,
-      }),
-    });
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(`Vanchin API ${response.status}: ${body.slice(0, 200)}`);
+      throw new Error(`Cerebras API ${response.status}: ${body.slice(0, 200)}`);
     }
 
     const data = (await response.json()) as {
@@ -359,7 +357,6 @@ export async function extractQuestions(
   const userPrompt = buildUserPrompt(pages);
   const answerKeyDetected = hasAnswerKey(userPrompt);
   const systemPrompt = buildSystemPrompt(exam, answerKeyDetected);
-  const isLarge = pages.length > MAX_PAGES_CEREBRAS;
 
   if (!answerKeyDetected) {
     logger.warn("No answer key detected in PDF. All answers will be set to empty.");
@@ -368,43 +365,52 @@ export async function extractQuestions(
   }
 
   const providers: Provider[] = [
+    // 1 — NVIDIA DeepSeek V4 Flash: 40 RPM, 1M context, 64K output, fastest
     {
-      name: "NVIDIA NIM",
+      name: "NVIDIA DeepSeek V4 Flash",
       key: NVIDIA_KEY,
       call: (p, s) => callNvidia(p, s),
       supportsLarge: true,
     },
+    // 2 — LongCat Flash Lite: 30 RPM, 256K max output, 50M free tokens/day
+    // Best for massive 180-question papers needing large output
     {
-      name: "Cerebras",
-      key: CEREBRAS_KEY,
-      call: (p, s) => callCerebras(p, s),
-      supportsLarge: false,
-    },
-    {
-      name: "Gemini",
-      key: GEMINI_KEY,
-      call: (p, s) => callGemini(p, s),
-      supportsLarge: true,
-    },
-    {
-      name: "LongCat",
+      name: "LongCat Flash Lite",
       key: LONGCAT_KEY,
       call: (p, s) => callLongcat(p, s),
       supportsLarge: true,
     },
+    // 3 — Poolside Laguna M.1: 30 RPM, 131K context, free preview
     {
       name: "Poolside",
       key: POOLSIDE_KEY,
       call: (p, s) => callPoolside(p, s),
       supportsLarge: true,
     },
+    // 4 — Vanchin KAT-Coder: 20 RPM, 2M TPM
     {
-      name: "Vanchin",
+      name: "Vanchin KAT-Coder",
       key: VANCHIN_KEY,
       call: (p, s) => callVanchin(p, s),
       supportsLarge: true,
     },
+    // 5 — Gemini 2.5 Flash: 5 RPM, 250K TPM, 20 RPD — stable fallback
+    {
+      name: "Gemini 2.5 Flash",
+      key: GEMINI_KEY,
+      call: (p, s) => callGemini(p, s),
+      supportsLarge: true,
+    },
+    // 6 — Cerebras: 5 RPM, 30K TPM — last resort, very rate-limited
+    {
+      name: "Cerebras",
+      key: CEREBRAS_KEY,
+      call: (p, s) => callCerebras(p, s),
+      supportsLarge: false,
+    },
   ];
+
+  const isLarge = pages.length > 12;
 
   for (const provider of providers) {
     if (!provider.key) continue;
@@ -425,7 +431,7 @@ export async function extractQuestions(
 
   throw new Error(
     "No AI provider succeeded. Set at least one of: NVIDIA_API_KEY (40 RPM, recommended), " +
-    "CEREBRAS_API_KEY (5 RPM), GEMINI_API_KEY (5 RPM), LONGCAT_API_KEY (50M tokens), " +
-    "POOLSIDE_API_KEY, VC_API_KEY (Vanchin)."
+    "LONGCAT_API_KEY (256K output, 50M tokens), POOLSIDE_API_KEY, VC_API_KEY (Vanchin), " +
+    "GEMINI_API_KEY, CEREBRAS_API_KEY."
   );
 }

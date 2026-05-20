@@ -71,11 +71,11 @@ C:\QUESTION-PIPELINE\
                            Retry: 3x with exponential backoff
                            Error: File too large → split and re-OCR
 
-      structurer.ts        Priority: NVIDIA (40 RPM) > Cerebras (5 RPM, <=12pgs) > Gemini (5 RPM) > LongCat (50M tokens).
-                           System prompt = JSON schema for Question[].
-                            Time-travel backfill: answer key on last page → match by number.
-                            ANTI-HALLUCINATION: scans raw text for answer key patterns BEFORE sending to AI.
-                            If no key detected: sets ALL answers to "" and warns user.
+      structurer.ts        Priority: NVIDIA DeepSeek V4 Flash (40 RPM, 1M ctx) > LongCat Flash Lite (30 RPM, 256K output) >
+                            Poolside (30 RPM, 131K ctx) > Vanchin KAT-Coder (20 RPM) > Gemini 2.5 Flash (5 RPM) >
+                            Cerebras (5 RPM, <=12 pgs). max_tokens varies per provider (64K-256K).
+                            Subject files (physics.json etc) are SPLIT from paper.json — no fresh AI call.
+                            ANTI-HALLUCINATION: scans for answer key → prompts AI → strips if absent → validates.
                            In: markdown string. Out: Question[] + Passage[]
                            Error: JSON parse failure → re-prompt with stricter instructions
 
@@ -583,7 +583,7 @@ Tombstone: removed IDs never reused
 7. **Checksum = SHA-256 before adding checksum field**
 8. **Human review = accuracy guarantee** — AI 80-95%, validation +5%, human catches rest
 9. **Zero Rankify schema changes** — 30-line adapter
-10. **Free tier only** — Mistral OCR 50k TPM / 1 RPS, NVIDIA NIM 40 RPM (primary), Poolside, Vanchin, LongCat 50M tokens, Cerebras 5 RPM, Gemini 5 RPM
+10. **Free tier only** — Mistral OCR 50k TPM / 1 RPS, NVIDIA DeepSeek V4 Flash 40 RPM / 1M ctx, LongCat Flash Lite 30 RPM / 256K output / 50M tokens, Poolside 30 RPM / 131K ctx, Vanchin KAT-Coder 20 RPM / 2M TPM, Gemini 2.5 Flash 5 RPM, Cerebras gpt-oss-120b 5 RPM / 65K ctx
 11. **No Docker, no database** — JSON files ARE the database
 
 ---
