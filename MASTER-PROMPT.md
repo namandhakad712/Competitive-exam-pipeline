@@ -152,7 +152,7 @@ Go through EVERY page of the PDF:
 
 ### Step 3: Extract to JSON
 
-For every question, determine:
+Use your best text-to-text AI model (NVIDIA NIM 40 RPM, LongCat 50M tokens, Cerebras, Gemini — whichever you have access to) to parse the raw text into structured JSON. Send the full OCR text with a system prompt containing the schema below.
 
 | Field | How to determine |
 |---|---|

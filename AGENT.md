@@ -71,7 +71,7 @@ C:\QUESTION-PIPELINE\
                            Retry: 3x with exponential backoff
                            Error: File too large → split and re-OCR
 
-      structurer.ts        Cerebras (<=12 pages, 65k context) or Gemini (>12 pages).
+      structurer.ts        Priority: NVIDIA (40 RPM) > Cerebras (5 RPM, <=12pgs) > Gemini (5 RPM) > LongCat (50M tokens).
                            System prompt = JSON schema for Question[].
                            Time-travel backfill: answer key on last page → match by number.
                            In: markdown string. Out: Question[] + Passage[]
@@ -390,9 +390,11 @@ npx tsx src/cross-validate/cross-validator.ts --a extracted-cerebras.json --b ex
 ## 8. Environment Variables Reference
 
 ```powershell
-$env:MISTRAL_API_KEY          # Required for OCR
-$env:CEREBRAS_API_KEY         # Required for extraction (<=12 pages)
-$env:GEMINI_API_KEY           # Required for extraction (>12 pages) or cross-validation
+$env:MISTRAL_API_KEY             # Required for OCR
+$env:NVIDIA_API_KEY              # Optional — 40 RPM, recommended primary extraction
+$env:CEREBRAS_API_KEY            # Optional — 5 RPM, falls back to NVIDIA
+$env:GEMINI_API_KEY              # Optional — 5 RPM
+$env:LONGCAT_API_KEY             # Optional — 50M tokens
 $env:KAGGLE_USERNAME          # Optional, for Kaggle import
 $env:KAGGLE_KEY               # Optional, for Kaggle import
 $env:EDITOR                   # Editor for review edit mode (default: notepad)

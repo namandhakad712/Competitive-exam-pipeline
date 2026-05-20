@@ -2,14 +2,23 @@ import { logger } from "../utils/logger.js";
 import { RateLimiter } from "../utils/rate-limiter.js";
 import type { PageContent, PartialQuestion, Exam, Passage } from "../types.js";
 
+// ---- API endpoints ----
+const NVIDIA_API = "https://integrate.api.nvidia.com/v1/chat/completions";
 const CEREBRAS_API = "https://api.cerebras.ai/v1/chat/completions";
 const GEMINI_API = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+const LONGCAT_API = "https://api.longcat.ai/v1/chat/completions";
 
+// ---- API keys ----
+const NVIDIA_KEY = process.env.NVIDIA_API_KEY ?? "";
 const CEREBRAS_KEY = process.env.CEREBRAS_API_KEY ?? "";
 const GEMINI_KEY = process.env.GEMINI_API_KEY ?? "";
+const LONGCAT_KEY = process.env.LONGCAT_API_KEY ?? "";
 
+// ---- Rate limiters (matching real free tier caps) ----
+const nvidiaLimiter = new RateLimiter({ maxRequests: 40, windowMs: 60_000 });
 const cerebrasLimiter = new RateLimiter({ maxRequests: 5, windowMs: 60_000 });
 const geminiLimiter = new RateLimiter({ maxRequests: 5, windowMs: 60_000 });
+const longcatLimiter = new RateLimiter({ maxRequests: 30, windowMs: 60_000 });
 
 const MAX_PAGES_CEREBRAS = 12;
 
@@ -19,6 +28,15 @@ interface ExtractionResult {
   rawResponse: string;
 }
 
+// ---- Providers in priority order ----
+interface Provider {
+  name: string;
+  key: string;
+  call: (prompt: string, systemPrompt: string) => Promise<string>;
+  supportsLarge: boolean;
+}
+
+// ---- System prompt ----
 function buildSystemPrompt(exam: Exam): string {
   return `You are an expert exam paper parser. Your job is to extract ALL questions from the given exam paper with 100% accuracy.
 
@@ -66,6 +84,59 @@ function buildUserPrompt(pages: PageContent[]): string {
   text += "\n--- END OF PAPER ---\n";
   text += "Extract all questions as JSON now.";
   return text;
+}
+
+function parseExtractionResponse(raw: string): ExtractionResult {
+  let cleaned = raw.trim();
+  if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/```(?:json)?\n?/g, "").trim();
+  }
+
+  const parsed = JSON.parse(cleaned);
+  const questions: PartialQuestion[] = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray(parsed.questions)
+      ? parsed.questions
+      : [];
+
+  const passages: Passage[] = Array.isArray(parsed.passages)
+    ? parsed.passages
+    : [];
+
+  return { questions, passages, rawResponse: raw };
+}
+
+// ===================== Provider implementations =====================
+
+async function callNvidia(prompt: string, systemPrompt: string): Promise<string> {
+  return nvidiaLimiter.call(async () => {
+    const response = await fetch(NVIDIA_API, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${NVIDIA_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "meta-llama/llama-4-scout-17b-16e-instruct",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.1,
+        max_tokens: 32000,
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`NVIDIA API ${response.status}: ${body.slice(0, 200)}`);
+    }
+
+    const data = (await response.json()) as {
+      choices: Array<{ message: { content: string } }>;
+    };
+    return data.choices?.[0]?.message?.content ?? "";
+  });
 }
 
 async function callCerebras(prompt: string, systemPrompt: string): Promise<string> {
@@ -132,25 +203,38 @@ async function callGemini(prompt: string, systemPrompt: string): Promise<string>
   });
 }
 
-function parseExtractionResponse(raw: string): ExtractionResult {
-  let cleaned = raw.trim();
-  if (cleaned.startsWith("```")) {
-    cleaned = cleaned.replace(/```(?:json)?\n?/g, "").trim();
-  }
+async function callLongcat(prompt: string, systemPrompt: string): Promise<string> {
+  return longcatLimiter.call(async () => {
+    const response = await fetch(LONGCAT_API, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${LONGCAT_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "longcat-flash-lite",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.1,
+        max_tokens: 32000,
+      }),
+    });
 
-  const parsed = JSON.parse(cleaned);
-  const questions: PartialQuestion[] = Array.isArray(parsed)
-    ? parsed
-    : Array.isArray(parsed.questions)
-      ? parsed.questions
-      : [];
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`LongCat API ${response.status}: ${body.slice(0, 200)}`);
+    }
 
-  const passages: Passage[] = Array.isArray(parsed.passages)
-    ? parsed.passages
-    : [];
-
-  return { questions, passages, rawResponse: raw };
+    const data = (await response.json()) as {
+      choices: Array<{ message: { content: string } }>;
+    };
+    return data.choices?.[0]?.message?.content ?? "";
+  });
 }
+
+// ===================== Main entry point =====================
 
 export async function extractQuestions(
   pages: PageContent[],
@@ -158,22 +242,54 @@ export async function extractQuestions(
 ): Promise<ExtractionResult> {
   const systemPrompt = buildSystemPrompt(exam);
   const userPrompt = buildUserPrompt(pages);
+  const isLarge = pages.length > MAX_PAGES_CEREBRAS;
 
-  const useCerebras = pages.length <= MAX_PAGES_CEREBRAS && CEREBRAS_KEY;
+  const providers: Provider[] = [
+    {
+      name: "NVIDIA NIM",
+      key: NVIDIA_KEY,
+      call: (p, s) => callNvidia(p, s),
+      supportsLarge: true,
+    },
+    {
+      name: "Cerebras",
+      key: CEREBRAS_KEY,
+      call: (p, s) => callCerebras(p, s),
+      supportsLarge: false,
+    },
+    {
+      name: "Gemini",
+      key: GEMINI_KEY,
+      call: (p, s) => callGemini(p, s),
+      supportsLarge: true,
+    },
+    {
+      name: "LongCat",
+      key: LONGCAT_KEY,
+      call: (p, s) => callLongcat(p, s),
+      supportsLarge: true,
+    },
+  ];
 
-  if (useCerebras) {
-    logger.info(`Structure: using Cerebras (${pages.length} pages)`);
-    const raw = await callCerebras(userPrompt, systemPrompt);
-    return parseExtractionResponse(raw);
-  }
+  for (const provider of providers) {
+    if (!provider.key) continue;
+    if (isLarge && !provider.supportsLarge) {
+      logger.debug(`Skipping ${provider.name} (does not support ${pages.length} pages)`);
+      continue;
+    }
 
-  if (GEMINI_KEY) {
-    logger.info(`Structure: using Gemini (${pages.length} pages)`);
-    const raw = await callGemini(userPrompt, systemPrompt);
-    return parseExtractionResponse(raw);
+    logger.info(`Structure: using ${provider.name} (${pages.length} pages)`);
+    try {
+      const raw = await provider.call(userPrompt, systemPrompt);
+      return parseExtractionResponse(raw);
+    } catch (err) {
+      logger.warn(`${provider.name} failed: ${err instanceof Error ? err.message : String(err)}`);
+      continue;
+    }
   }
 
   throw new Error(
-    "No AI provider available. Install CEREBRAS_API_KEY (for <=12 pages) or GEMINI_API_KEY (for larger PDFs)."
+    "No AI provider succeeded. Set at least one of: NVIDIA_API_KEY (40 RPM, recommended), " +
+    "CEREBRAS_API_KEY (5 RPM), GEMINI_API_KEY (5 RPM), LONGCAT_API_KEY (50M tokens)."
   );
 }
