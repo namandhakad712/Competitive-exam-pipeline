@@ -328,10 +328,12 @@ function normalizeStr(v: unknown): string {
 export function buildConsensus(
   candidates: ConsensusCandidate[],
 ): ConsensusResult {
-  const maxQuestions = Math.max(
-    ...candidates.map((c) => c.questions.length),
-    0,
-  );
+  const maxQuestions = candidates.length > 0
+    ? Math.max(
+        ...candidates.flatMap((c) => c.questions.map((q) => q.number)),
+        0,
+      )
+    : 0;
   const consensus: PartialQuestion[] = [];
   const conflicts: Conflict[] = [];
   const answerKeyFound = candidates.some((c) => c.answerKeyFound);
