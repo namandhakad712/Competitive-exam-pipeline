@@ -19,7 +19,7 @@ import type { ChunkResult } from "./merger.js";
 const NVIDIA_API = "https://integrate.api.nvidia.com/v1/chat/completions";
 const LONGCAT_API = "https://api.longcat.chat/openai/v1/chat/completions";
 const POOLSIDE_API = "https://inference.poolside.ai/v1/chat/completions";
-const GEMINI_API = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+const GEMINI_API = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent";
 
 // ---- API keys ----
 const NVIDIA_KEY = process.env.NVIDIA_API_KEY ?? "";
@@ -32,7 +32,7 @@ const nvidiaLimiter = new RateLimiter({ maxRequests: 40, windowMs: 60_000 });
 const longcatLimiter = new RateLimiter({ maxRequests: 30, windowMs: 60_000 });
 const longcatChatLimiter = new RateLimiter({ maxRequests: 30, windowMs: 60_000 });
 const poolsideLimiter = new RateLimiter({ maxRequests: 100, windowMs: 60_000 });
-const geminiLimiter = new RateLimiter({ maxRequests: 5, windowMs: 60_000 });
+const geminiLimiter = new RateLimiter({ maxRequests: 15, windowMs: 60_000 });
 
 // ---- Provider ranking (higher = more reliable for extraction) ----
 const PROVIDER_RANK: Record<ProviderName, number> = {
@@ -43,7 +43,7 @@ const PROVIDER_RANK: Record<ProviderName, number> = {
   longcat: 4,            // legacy alias for longcat-lite
   "nvidia-mistral": 4,   // 2,400 RPD + multimodal
   "longcat-chat": 3,     // 500K tokens/day
-  gemini: 2,             // 20 RPD (validation only)
+  gemini: 2,             // 500 RPD, 15 RPM (validation only)
   cerebras: 1,           // 2,400 RPD (fallback)
   vanchin: 0,            // 28,800 RPD (code validation)
 };
@@ -277,7 +277,7 @@ async function callGemini(
 ): Promise<string> {
   return geminiLimiter.call(async () => {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
+      `${GEMINI_API}?key=${GEMINI_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -8,7 +8,7 @@ import type { ChunkResult } from "./merger.js";
 // ---- API endpoints ----
 const NVIDIA_API = "https://integrate.api.nvidia.com/v1/chat/completions";
 const CEREBRAS_API = "https://api.cerebras.ai/v1/chat/completions";
-const GEMINI_API = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+const GEMINI_API = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent";
 const LONGCAT_API = "https://api.longcat.chat/openai/v1/chat/completions";
 const POOLSIDE_API = "https://inference.poolside.ai/v1/chat/completions";
 const VANCHIN_API = "https://vanchin.streamlake.ai/api/gateway/v1/endpoints/chat/completions";
@@ -24,7 +24,7 @@ const VANCHIN_KEY = process.env.VC_API_KEY ?? "";
 // ---- Rate limiters (matching real free tier caps) ----
 const nvidiaLimiter = new RateLimiter({ maxRequests: 40, windowMs: 60_000 });
 const cerebrasLimiter = new RateLimiter({ maxRequests: 5, windowMs: 60_000 });
-const geminiLimiter = new RateLimiter({ maxRequests: 5, windowMs: 60_000 });
+const geminiLimiter = new RateLimiter({ maxRequests: 15, windowMs: 60_000 });
 const longcatLimiter = new RateLimiter({ maxRequests: 30, windowMs: 60_000 });
 const poolsideLimiter = new RateLimiter({ maxRequests: 30, windowMs: 60_000 });
 const vanchinLimiter = new RateLimiter({ maxRequests: 20, windowMs: 60_000 });
@@ -459,9 +459,9 @@ function getDefaultProviders(): Provider[] {
       call: (p, s) => callVanchin(p, s),
       supportsLarge: true,
     },
-    // 5 — Gemini 2.5 Flash: 5 RPM, 250K TPM, 20 RPD — stable fallback
+    // 5 — Gemini 3.1 Flash Lite: 15 RPM, 250K TPM, 500 RPD — stable fallback
     {
-      name: "Gemini 2.5 Flash",
+      name: "Gemini 3.1 Flash Lite",
       key: GEMINI_KEY,
       call: (p, s) => callGemini(p, s),
       supportsLarge: true,
@@ -481,7 +481,7 @@ function getDefaultProviders(): Provider[] {
 // Answer key page detection — finds pages with answer keys
 // ─────────────────────────────────────────────────────────────
 
-function detectAnswerKeyPages(pages: PageContent[], skipConfirmation = false): PageContent[] {
+async function detectAnswerKeyPages(pages: PageContent[], skipConfirmation = false): Promise<PageContent[]> {
   const answerKeyPages: PageContent[] = [];
   
   // Check last 10 pages for answer key patterns

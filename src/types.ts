@@ -301,7 +301,7 @@ export type ProviderName =
   | "longcat"          // legacy, now longcat-lite
   | "poolside"         // Unlimited, 131K context
   | "vanchin"
-  | "gemini"           // 20 RPD, 1M context
+  | "gemini"           // 500 RPD, 15 RPM, 1M context
   | "cerebras"         // 2,400 RPD, 65K context
   | "longcat-lite"     // 50M tokens/day, 256K context
   | "longcat-chat"     // 500K tokens/day, 256K context

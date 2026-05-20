@@ -485,7 +485,7 @@ code{
       <div class="card-badge amber">3 MODELS</div>
     </div>
     <div class="card-desc">
-      Runs 3 AI models in parallel, extracts questions independently, then builds consensus through majority voting. Detects conflicts automatically.
+      Auto-detects answer key pages, appends to all chunks, confirms via interactive prompt, then runs 3 AI models in parallel. Builds consensus through majority voting. Detects conflicts automatically. Backfills missing answers from answer key.
     </div>
     <div class="providers">
       <div class="provider primary">
@@ -500,8 +500,8 @@ code{
       </div>
       <div class="provider">
         <div class="rank">#3</div>
-        <div class="name">Gemini 2.5 Flash</div>
-        <div class="spec">5 RPM · 250K TPM</div>
+        <div class="name">Gemini 3.1 Flash Lite</div>
+        <div class="spec">15 RPM · 500 RPD</div>
       </div>
     </div>
     <div class="output">
@@ -536,7 +536,7 @@ code{
       <div class="card-badge">AUTO</div>
     </div>
     <div class="card-desc">
-      Links diagrams to questions using Mistral's image IDs and markdown references. Saves as PNG with proper naming: <code>q001-fig1.png</code>
+      Links diagrams to questions using Mistral bbox annotations, text pattern auto-detection, and markdown references. Saves as PNG with proper naming: <code>q001-fig1.png</code>
     </div>
     <div class="card-meta">
       <div class="meta-item">

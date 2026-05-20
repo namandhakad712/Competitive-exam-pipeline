@@ -222,7 +222,7 @@ C:\QUESTION-PIPELINE\
                              LongCat Flash Lite: 30 req/min,
                              Poolside Laguna M.1: 30 req/min,
                              Vanchin KAT-Coder: 20 req/min,
-                             Gemini 2.5 Flash: 5 req/min (250k TPM, 20 RPD),
+                              Gemini 3.1 Flash Lite: 15 req/min (250k TPM, 500 RPD),
                              Cerebras GPT-OSS-120B: 5 req/min (30k TPM)
                              Queue + window-based throttling. RateLimiter class.
 
@@ -581,7 +581,7 @@ $env:LONGCAT_API_KEY             # Optional — 30 RPM, 256K output, best for la
 $env:POOLSIDE_API_KEY            # Optional — 30 RPM, 131K ctx, requires enable_thinking=false
 $env:VC_API_KEY                  # Optional — 20 RPM, Vanchin KAT-Coder
 $env:CEREBRAS_API_KEY            # Optional — 5 RPM, last resort (max_completion_tokens not max_tokens)
-$env:GEMINI_API_KEY              # Optional — 5 RPM
+$env:GEMINI_API_KEY              # Optional — 15 RPM · 500 RPD
 $env:LONGCAT_API_KEY             # Optional — 50M tokens
 $env:POOLSIDE_API_KEY            # Optional — poolside/laguna-m.1
 $env:VC_API_KEY                  # Optional — Vanchin KAT-Coder-Air-V1
@@ -780,7 +780,7 @@ Tombstone: removed IDs never reused
 7. **Checksum = SHA-256 before adding checksum field**
 8. **Human review = accuracy guarantee** — AI 80-95%, validation +5%, human catches rest
 9. **Zero Rankify schema changes** — 30-line adapter
-10. **Free tier only** — Mistral OCR 50k TPM / 1 RPS, NVIDIA Qwen3 Coder 480B 40 RPM / 262K ctx (primary), LongCat Flash Lite 30 RPM / 256K output / 50M tokens (best for big papers), Poolside Laguna M.1 30 RPM / 131K ctx (enable_thinking=false), Vanchin KAT-Coder 20 RPM / 2M TPM, Gemini 2.5 Flash 5 RPM, Cerebras gpt-oss-120b 5 RPM / 65K ctx (max_completion_tokens)
+10. **Free tier only** — Mistral OCR 50k TPM / 1 RPS, NVIDIA Qwen3 Coder 480B 40 RPM / 262K ctx (primary), LongCat Flash Lite 30 RPM / 256K output / 50M tokens (best for big papers), Poolside Laguna M.1 30 RPM / 131K ctx (enable_thinking=false), Vanchin KAT-Coder 20 RPM / 2M TPM, Gemini 3.1 Flash Lite 15 RPM / 500 RPD, Cerebras gpt-oss-120b 5 RPM / 65K ctx (max_completion_tokens)
 11. **No Docker, no database** — JSON files ARE the database
 
 ---

@@ -52,7 +52,7 @@ The script handles everything: OCR → AI extraction → validation → export +
 
 - **NEVER generate fake questions, answers, or papers from your training data.** If the pipeline cannot complete a stage, tell me. I'd rather fix a real error than discover corrupted data later.
 - **Check checkpoints first.** If a shift is already in `.checkpoints.json`, skip it unless I say `--force`.
-- **Only use the 6 configured AI providers** (NVIDIA Qwen3, LongCat, Poolside, Vanchin, Gemini, Cerebras). Do not call any other API.
+- **Only use the 6 configured AI providers** (NVIDIA Qwen3, LongCat, Poolside, Vanchin, Gemini 3.1 Flash Lite, Cerebras). Do not call any other API.
 
 ## Output location
 

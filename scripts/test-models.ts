@@ -39,9 +39,9 @@ const PROVIDERS: Provider[] = [
     body: { model: "ep-8jt098-1774548880917375225", messages: [{ role: "user", content: "hi" }], max_tokens: 1 },
   },
   {
-    name: "Gemini 2.5 Flash",
+    name: "Gemini 3.1 Flash Lite",
     key: process.env.GEMINI_API_KEY ?? "", keyName: "GEMINI_API_KEY",
-    url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+    url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent",
     body: { contents: [{ role: "user", parts: [{ text: "hi" }] }], generationConfig: { maxOutputTokens: 1 } },
   },
   {
@@ -55,7 +55,7 @@ const PROVIDERS: Provider[] = [
 async function test(p: Provider): Promise<string> {
   if (!p.key || p.key === "xxx") return "SKIP (no key)";
   try {
-    const isGemini = p.name === "Gemini 2.5 Flash";
+    const isGemini = p.name === "Gemini 3.1 Flash Lite";
     const url = isGemini ? `${p.url}?key=${p.key}` : p.url;
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (!isGemini) headers["Authorization"] = `Bearer ${p.key}`;

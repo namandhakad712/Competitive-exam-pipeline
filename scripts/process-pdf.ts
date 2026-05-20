@@ -540,6 +540,7 @@ Answer Key Detection:
           exam,
           mergedText,
           useConsensus,
+          skipAnswerKeyPrompt,
         );
         await saveStageCache(cacheKey, "extract", extraction);
         await updateStage(exam, year, shift, "extract", "completed");

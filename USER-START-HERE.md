@@ -76,6 +76,11 @@ npm run process-pdf -- --input input/neet-2025-04may-s1.pdf --use-enhanced-ocr -
 npm run process-pdf -- --input input/neet-2025-04may-s1.pdf --force
 ```
 
+### Skip Answer Key Prompt (Auto-accept)
+```bash
+npm run process-pdf -- --input input/neet-2025-04may-s1.pdf --skip-answer-key-prompt
+```
+
 ### With Answer Key PDF
 ```bash
 npm run process-pdf -- --input input/neet-2025-04may-s1.pdf --answer-key input/neet-2025-04may-s1-answers.pdf
