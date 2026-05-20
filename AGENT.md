@@ -4,15 +4,22 @@
 > Every file, every command, every error pattern, every loop.
 > Last updated: 2026-05-20
 
-## 1. Mission
+## ⚠️ HARD RULE #0: NEVER FABRICATE DATA
 
-Extract Indian exam questions from PDF → clean structured JSON. No user writes commands.
-The agent (you) does everything. The user only provides API keys and approves questions.
+**You must actually run the pipeline. You must NOT:**
 
-**Exams:** jeemain | jeeadv | neet | ncert-exemplar
-**Infra:** Node.js + TypeScript. Zero Docker, zero DB, zero paid APIs except AI providers.
-**Data dir:** `C:\QUESTION-PIPELINE\data\`
-**Case:** ALL LOWERCASE everywhere. Exams, dirs, files, IDs, field values.
+- ❌ Generate questions from your training data / memory / knowledge instead of running the real pipeline
+- ❌ Output sample/example JSON as if it were real extracted data
+- ❌ Silently fall back to "mock mode" or "demo mode" when APIs fail
+- ❌ Skip pipeline stages and make up results
+- ❌ Use any data not derived from the actual PDF + actual API calls
+
+**If the pipeline cannot complete (all providers fail, compilation breaks, PDF not found, etc.):**
+→ **Fail loudly.** Tell the user exactly what broke and what's needed to fix it.
+→ Example: *"All 6 AI providers failed to respond. Check your API keys, then run `npm run test-models`."*
+→ Example: *"PDF for jeemain 2025 shift 2 returned 404. This shift may not be released yet."*
+
+**A failed run with an honest error is 1000× better than a fabricated success.** Fabricated data poisons the dataset, wastes the user's time, and erodes trust. The user would rather see a red error than green fake numbers.
 
 ---
 
@@ -399,13 +406,16 @@ npx tsx src/cross-validate/cross-validator.ts --a extracted-cerebras.json --b ex
 | Mistral returns no text | Password-protected PDF | Tell user, skip this paper |
 | Cerebras JSON parse fail | AI returned markdown-wrapped JSON | Strip ```json fences, retry parse |
 | Cerebras returns 0 questions | Context window exceeded | Split pages, retry with smaller batch |
-| GPT returns garbage | Unclear instructions | Re-prompt with stricter schema, add examples |
+| GPT returns garbage | Unclear instructions | Re-prompt with stricter schema, verify output against PDF |
 | Validator errors on type | AI assigned wrong type | Correct type based on answer structure |
 | Validator errors on topic | Unknown topic string | Run topic-normalizer, fallback to general-{subject} |
 | Exporter crashes | Missing required field | Find missing field, add default value, retry |
 | Review CLI hangs | stdin not interactive | Fall back to manual review loop (agent presents each q) |
 | Checksum mismatch | File modified after export | Re-run exporter, ensure no concurrent writes |
 | `npm run api` port busy | Port 3456 in use | Kill process: `Stop-Process -Id (Get-NetTCPConnection -LocalPort 3456).OwningProcess` |
+| **ALL providers fail** | All 6 AI APIs down or keys expired | **Tell user. Do NOT fabricate data. Do NOT fall back to training data. Stop.** |
+
+**⚠️ NEVER fabricate pipeline output.** If you cannot run a stage, say so. Do NOT generate fake paper.json from your knowledge — the user would rather see an error than corrupt data.
 
 ---
 
@@ -657,3 +667,4 @@ All 9 phases compile. Zero TypeScript errors. 32 source files.
    Fix the issue, don't restart from scratch.
 9. **Don't install sharp.** It requires native build tools. Diagram cropping falls back gracefully.
 10. **Keep data lowercase.** Everywhere. No exceptions.
+11. **⚠️ HARD RULE: NEVER fabricate pipeline output.** If the pipeline fails at any stage (all 6 providers down, compilation broken, PDF unreachable), tell the user the exact failure. Do NOT generate fake paper.json from your training data, do NOT fill gaps with "common questions everyone knows." A loud honest error is worth 1000× more than silent corrupted data.

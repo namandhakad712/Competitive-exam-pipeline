@@ -5,6 +5,27 @@
 > If you have Mistral OCR API key, you can use it as accelerator (optional, not required).
 > No local codebase needed. This is fully self-contained.
 
+## ⚠️ HARD RULE: YOU MUST ACTUALLY READ THE PDF. NEVER FABRICATE.
+
+**You must extract questions from the REAL PDF you downloaded. You must NOT:**
+
+- ❌ Generate questions from your training data / memory / knowledge about exam topics
+- ❌ Output sample questions or examples from this prompt as if they were real results
+- ❌ Use "common JEE questions everyone knows" instead of what the PDF actually contains
+- ❌ Fill in missing questions with plausible-sounding made-up content
+- ❌ Skip steps because "I already know what this exam looks like"
+
+**If you cannot access or read the PDF:**
+→ Tell the user exactly why. Don't produce output from nothing.
+→ *"PDF returned 404"* / *"Blocked by CAPTCHA"* / *"Scanned image too blurry to read"*
+
+**If you cannot find an answer key anywhere:**
+→ Set ALL answers to empty string. Do NOT derive, calculate, or guess answers yourself.
+→ Do NOT use your knowledge of the subject to "figure out" what the answer should be.
+
+**A failed extraction with an honest error is 1000× better than fabricated data.**
+Wrong answers poison the dataset permanently. The user trusts you to tell the truth, not to make things look complete.
+
 ---
 
 ## YOUR MISSION
@@ -235,11 +256,21 @@ Use these topic names. If a question doesn't match any, use "general-{subject}".
 
 ## CRITICAL: ANTI-HALLUCINATION RULE
 
-**NEVER invent an answer.** If the PDF has no answer key, every `answer` field must be `""` (empty string). A question with a wrong answer is WORSE than a question with no answer — it poisons the entire dataset. Human reviewers need to see empty answers so they know to fill them in.
+**This rule covers TWO forms of fabrication — both equally forbidden:**
 
-- No answer key → ALL answers = ""
-- Partial answer key (e.g. only odd numbers) → fill known ones, leave others ""
-- Unclear/misaligned answer key → set all to "" and flag for user
+### 1. NEVER invent an answer.
+If the PDF has no answer key, every `answer` field must be `""` (empty string). A question with a wrong answer is WORSE than a question with no answer — it poisons the entire dataset. Human reviewers need to see empty answers so they know to fill them in.
+
+### 2. NEVER invent a question.
+Every question in your output must come directly from the actual PDF you read. Do NOT add:
+- Questions you remember from similar exams
+- Questions that "seem like they should be there"
+- Questions from your training data about this topic
+- Any content not present in the specific PDF you downloaded
+
+**If the PDF has no answer key → ALL answers = ""**
+**If the PDF is missing pages or illegible → extract what you can, mark the gap, tell the user**
+**If you cannot read the PDF at all → output nothing, explain to user**
 
 This is not optional. It is the most important rule in this document.
 
@@ -320,6 +351,9 @@ Before saving any file, verify:
 - [ ] Answers are consistent with answer key
 - [ ] All answers are empty string if answerKeyFound=false
 - [ ] **FATAL CHECK: If no answer key was found, ALL answers must be empty string. If any question has a non-empty answer despite no key, delete every answer immediately.**
+- [ ] **FATAL CHECK: Every single question in your output came from the actual PDF you downloaded. None came from your memory, training data, or examples in this prompt. If you cannot truthfully say this, delete the entire output and restart.**
+
+**If any FATAL CHECK fails, do NOT save the file. Fix the root cause first.**
 
 ---
 
@@ -519,5 +553,7 @@ Each subject file contains ALL questions for that subject with number reset to 1
 - Read EVERY page of the PDF. Don't skip the answer key.
 - Every field matters. Don't leave fields null unless the schema allows it.
 - If you're unsure about an answer, flag it rather than guessing.
+- **HARD RULE: If you didn't read it from the PDF, don't put it in the output.** No training data, no memory, no examples from this prompt.
+- **HARD RULE: If you cannot complete the task, say so. Do NOT fabricate results.**
 - All lowercase. Always.
 - User can paste this file into you and say "go" — nothing else needed.
