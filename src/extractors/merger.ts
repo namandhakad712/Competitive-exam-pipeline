@@ -107,13 +107,22 @@ export function mergeChunks(results: ChunkResult[]): {
     }
   }
 
-  const answerKeyFound = results.some((r) => r.answerKeyFound);
+  // ---- Answer key backfill ----
+  const answerKey = extractAnswerKey(results);
+  const questionsWithAnswers = backfillAnswers(questions, answerKey);
+  const answerKeyFound = results.some((r) => r.answerKeyFound) || answerKey.found;
 
   logger.info(
     `Merge: ${results.length} chunks → ${questions.length} unique questions (${results.reduce((s, r) => s + r.questions.length, 0)} raw), ${passages.length} passages`,
   );
 
-  return { questions, passages, answerKeyFound };
+  if (answerKey.found) {
+    logger.info(
+      `Answer key: ${answerKey.answers.size} answers extracted, backfilled to ${questionsWithAnswers.length - questions.length + questions.filter((q) => q.answer && q.answer !== "").length} questions`,
+    );
+  }
+
+  return { questions: questionsWithAnswers, passages, answerKeyFound };
 }
 
 function computeCompleteness(q: PartialQuestion): number {
@@ -251,4 +260,67 @@ export async function findDuplicates(
   }
 
   return duplicates;
+}
+
+// ===================== Answer Key Backfill =====================
+
+interface AnswerKeyData {
+  found: boolean;
+  answers: Map<number, string>;
+  chunkIndex: number;
+}
+
+function extractAnswerKey(chunks: ChunkResult[]): AnswerKeyData {
+  const answers = new Map<number, string>();
+  let foundChunkIndex = -1;
+
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+
+    if (chunk.answerKeyFound) {
+      foundChunkIndex = i;
+
+      for (const q of chunk.questions) {
+        if (q.answer && q.answer !== "") {
+          answers.set(q.number, q.answer);
+        }
+      }
+    }
+  }
+
+  return {
+    found: answers.size > 0,
+    answers,
+    chunkIndex: foundChunkIndex,
+  };
+}
+
+function backfillAnswers(
+  questions: PartialQuestion[],
+  answerKey: AnswerKeyData,
+): PartialQuestion[] {
+  if (!answerKey.found) {
+    return questions;
+  }
+
+  let backfilled = 0;
+  let alreadyHad = 0;
+
+  for (const q of questions) {
+    if (!q.answer || q.answer === "") {
+      const answer = answerKey.answers.get(q.number);
+      if (answer) {
+        q.answer = answer;
+        backfilled++;
+      }
+    } else {
+      alreadyHad++;
+    }
+  }
+
+  logger.info(
+    `Answer backfill: ${backfilled} filled, ${alreadyHad} already had answers, ${questions.length - backfilled - alreadyHad} still empty`,
+  );
+
+  return questions;
 }
