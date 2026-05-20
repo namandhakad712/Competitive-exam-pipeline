@@ -38,7 +38,27 @@ Download Indian exam PDFs from the web, read every page visually, extract every 
 
 ## OUTPUT SCHEMA — You MUST output exactly this structure
 
-### File: `paper.json`
+### Output structure
+
+```
+data/{exam}/{year}/{shift}/
+├── physics.json          ← PRIMARY: per-subject question files
+├── chemistry.json
+├── biology.json
+├── paper.json            ← SECONDARY: merged from subject files
+└── diagrams/
+    ├── physics/
+    │   ├── q001-fig1.png
+    │   ├── q001-fig2.png
+    │   └── ...
+    ├── chemistry/
+    └── biology/
+```
+
+Subject files are written FIRST. `paper.json` is built SECONDARY by merging subjects.
+Diagrams live per-shift (not global), so paths are relative: `diagrams/physics/q001-fig1.png`.
+
+### Schema: each subject file (and `paper.json`)
 
 ```json
 {
@@ -46,7 +66,6 @@ Download Indian exam PDFs from the web, read every page visually, extract every 
   "exam": "jeemain",
   "year": 2025,
   "shift": "22jan-shift1",
-  "paper": null,
   "subjects": ["physics", "chemistry", "mathematics"],
   "total": 90,
   "duration": 180,
@@ -92,10 +111,7 @@ Download Indian exam PDFs from the web, read every page visually, extract every 
 }
 ```
 
-### Subject split file: `physics.json`
-
-Same as `paper.json` but only contains questions for one subject.
-Number resets to 1-N within the subject file. IDs remain globally unique.
+Number resets to 1-N within each subject file. IDs remain globally unique.
 
 ### ID scheme
 
@@ -406,7 +422,7 @@ If something went wrong:
 - If question says "see figure" or has a diagram
 - Set `hasDiagram: true`
 - Save the diagram image if you can access/extract it
-- Reference it in `diagrams: [{ file: "q003-fig1.png", label: null, caption: null }]`
+- Reference it in `diagrams: [{ file: "diagrams/physics/q003-fig1.png", label: null, caption: null }]`
 
 ---
 

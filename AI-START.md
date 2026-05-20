@@ -56,6 +56,9 @@ The script handles everything: OCR → AI extraction → validation → export +
 
 ## Output location
 
-`data/{exam}/{year}/{shift}/paper.json` — plus split subject files.
+`data/{exam}/{year}/{shift}/` — contains:
+- `physics.json`, `chemistry.json`, `biology.json` (primary — subject-level)
+- `paper.json` (secondary — merged from subject files)
+- `diagrams/{subject}/q{number}-fig{n}.png` (per-shift diagrams)
 
 Go ahead — read the files and report back what you find.

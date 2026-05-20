@@ -99,9 +99,8 @@ C:\QUESTION-PIPELINE\
                             Error: JSON parse failure → re-prompt with stricter instructions
 
       diagram-cacher.ts    Decodes base64 images from Mistral → PNG files.
-                           Tier 1: use Mistral's individual image coordinates.
-                           Tier 2: coordinate-crop from full-page PNG (sharp, fallback=uncropped).
-                           Saves to: diagrams/{subject}/q{number}-fig{n}.png
+                           Saves to: {shiftDir}/diagrams/{subject}/q{number}-fig{n}.png
+                           (shiftDir = data/{exam}/{year}/{shift}/) — per-shift, not global.
 
     validators/
       field-checker.ts     Type-specific rules per QuestionType:
@@ -145,6 +144,12 @@ C:\QUESTION-PIPELINE\
       exporter.ts          Full pipeline output:
                            1. normalizeText() on all text fields
                            2. normalizeTopic() on all topics
+                           3. assignIds() — subject-relative numbering
+                           4. writeDataset(): writes subject JSONs FIRST (physics.json etc),
+                              then paper.json SECONDARY (merged from subjects).
+                           5. updateIndex() — register in data/index.json
+                           Output dir: data/{exam}/{year}/{shift}/
+                           Diagrams:   data/{exam}/{year}/{shift}/diagrams/{subject}/
                            3. assign IDs via id-assigner
                            4. build QuestionFile wrapper
                            5. compute checksum (serialize without checksum → SHA-256 → add)
