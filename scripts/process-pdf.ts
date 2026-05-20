@@ -20,7 +20,7 @@ import { existsSync } from "fs";
 import { parseArgs } from "util";
 import { logger } from "../src/utils/logger.js";
 import { ocrPdf } from "../src/extractors/ocr-stage.js";
-import { extractQuestions } from "../src/extractors/structurer.js";
+import { extractQuestions, distributedExtract } from "../src/extractors/structurer.js";
 import { cacheDiagrams } from "../src/extractors/diagram-cacher.js";
 import { validateQuestionFile } from "../src/validators/auto-validator.js";
 import { exportDataset, writeDataset } from "../src/finalizers/exporter.js";
@@ -66,7 +66,16 @@ function parseFilename(name: string): ParsedMeta | null {
     return { exam: "ncert-exemplar", year: cls, shift: "", subjects: subj };
   }
 
-  // 5) Generic: try to extract year + month-day
+  // 5) NEET with code pattern: "NEET-2023 (Code-E1)", "NEET-2024_Code-C1", "NEET-2020(Code-W2)"
+  m = clean.match(/neet[-_.\s]?(20\d{2})/);
+  if (m) {
+    const isReExam = clean.includes("re-exam") || clean.includes("reexam");
+    const codeM = clean.match(/code[-_.\s]?([a-z]\d)/i);
+    const shift = isReExam ? (codeM ? `reexam-${codeM[1].toLowerCase()}` : "reexam") : (codeM ? codeM[1].toLowerCase() : "1");
+    return { exam: "neet", year: parseInt(m[1]), shift, subjects: ["physics", "chemistry", "biology"] };
+  }
+
+  // 6) Generic: try to extract year + month-day
   const yearM = clean.match(/(20\d{2})/);
   if (!yearM) return null;
 
@@ -160,6 +169,7 @@ const EXAM_DEFAULTS: Record<string, Partial<{ subjects: Subject[]; duration: num
 export async function main(args: string[] = process.argv.slice(2)): Promise<void> {
   const parsed = parseArgs({
     args,
+    allowPositionals: true,
     options: {
       input: { type: "string", short: "i" },
       "answer-key": { type: "string", short: "k" },
@@ -172,6 +182,13 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
   });
 
   const values = parsed.values;
+
+  if (values.help || !values.input) {
+    // If no --input but there's a positional arg, treat it as input path
+    if (!values.input && parsed.positionals && parsed.positionals.length > 0) {
+      values.input = parsed.positionals[0] as any;
+    }
+  }
 
   if (values.help || !values.input) {
     console.log(`
@@ -264,12 +281,12 @@ Examples:
 
     // Step 2: Structure extraction
     logger.info("Step 2/4: AI extraction...");
-    const extraction = await extractQuestions(
-      mergedText
-        ? [{ page: 0, markdown: mergedText, isBilingual: false }]
-        : ocrOutput.pages,
-      exam
-    );
+    const sourcePages = mergedText
+      ? [{ page: 0, markdown: mergedText, isBilingual: false }]
+      : ocrOutput.pages;
+    const extraction = sourcePages.length > 12 && !mergedText
+      ? await distributedExtract(sourcePages, exam)
+      : await extractQuestions(sourcePages, exam);
     logger.info(`  ${extraction.questions.length} questions extracted`);
     logger.info(`  Answer key ${extraction.answerKeyFound ? "found" : "NOT found — answers set to empty"}`);
 

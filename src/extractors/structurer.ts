@@ -1,6 +1,9 @@
 import { logger } from "../utils/logger.js";
 import { RateLimiter } from "../utils/rate-limiter.js";
 import type { PageContent, PartialQuestion, Exam, Passage } from "../types.js";
+import { splitIntoChunks, chunkToMarkdown } from "./chunker.js";
+import { mergeChunks } from "./merger.js";
+import type { ChunkResult } from "./merger.js";
 
 // ---- API endpoints ----
 const NVIDIA_API = "https://integrate.api.nvidia.com/v1/chat/completions";
@@ -364,7 +367,34 @@ export async function extractQuestions(
     logger.info("Answer key detected. Answers will be extracted from PDF.");
   }
 
-  const providers: Provider[] = [
+  const isLarge = pages.length > 12;
+
+  for (const provider of getDefaultProviders()) {
+    if (!provider.key) continue;
+    if (isLarge && !provider.supportsLarge) {
+      logger.debug(`Skipping ${provider.name} (does not support ${pages.length} pages)`);
+      continue;
+    }
+
+    logger.info(`Structure: using ${provider.name} (${pages.length} pages)`);
+    try {
+      const raw = await provider.call(userPrompt, systemPrompt);
+      return parseExtractionResponse(raw, answerKeyDetected);
+    } catch (err) {
+      logger.warn(`${provider.name} failed: ${err instanceof Error ? err.message : String(err)}`);
+      continue;
+    }
+  }
+
+  throw new Error(
+    "No AI provider succeeded. Set at least one of: NVIDIA_API_KEY (40 RPM, recommended), " +
+    "LONGCAT_API_KEY (256K output, 50M tokens), POOLSIDE_API_KEY, VC_API_KEY (Vanchin), " +
+    "GEMINI_API_KEY, CEREBRAS_API_KEY."
+  );
+}
+
+function getDefaultProviders(): Provider[] {
+  return [
     // 1 — NVIDIA Qwen3 Coder 480B: 40 RPM, 262K context (1M via YaRN), coding-optimized for JSON extraction
     {
       name: "NVIDIA Qwen3 Coder 480B",
@@ -402,36 +432,110 @@ export async function extractQuestions(
       supportsLarge: true,
     },
     // 6 — Cerebras: 5 RPM, 30K TPM — last resort, very rate-limited
+    // Now supports small chunks in distributed mode
     {
       name: "Cerebras",
       key: CEREBRAS_KEY,
       call: (p, s) => callCerebras(p, s),
-      supportsLarge: false,
+      supportsLarge: true,
     },
   ];
+}
 
-  const isLarge = pages.length > 12;
+// ─────────────────────────────────────────────────────────────
+// Distributed extraction — splits large PDFs into overlapping
+// chunks, assigns providers round-robin, runs in parallel,
+// retries failed chunks, merges results.
+// ─────────────────────────────────────────────────────────────
 
-  for (const provider of providers) {
-    if (!provider.key) continue;
-    if (isLarge && !provider.supportsLarge) {
-      logger.debug(`Skipping ${provider.name} (does not support ${pages.length} pages)`);
-      continue;
-    }
+export async function distributedExtract(
+  pages: PageContent[],
+  exam: Exam,
+): Promise<ExtractionResult> {
+  const allProviders = getDefaultProviders().filter(p => p.key);
 
-    logger.info(`Structure: using ${provider.name} (${pages.length} pages)`);
-    try {
-      const raw = await provider.call(userPrompt, systemPrompt);
-      return parseExtractionResponse(raw, answerKeyDetected);
-    } catch (err) {
-      logger.warn(`${provider.name} failed: ${err instanceof Error ? err.message : String(err)}`);
-      continue;
-    }
+  if (allProviders.length === 0) {
+    throw new Error("No AI providers configured. Set at least one API key in .env");
   }
 
-  throw new Error(
-    "No AI provider succeeded. Set at least one of: NVIDIA_API_KEY (40 RPM, recommended), " +
-    "LONGCAT_API_KEY (256K output, 50M tokens), POOLSIDE_API_KEY, VC_API_KEY (Vanchin), " +
-    "GEMINI_API_KEY, CEREBRAS_API_KEY."
-  );
+  // For small PDFs, fall back to single-provider extraction
+  if (pages.length <= 12) {
+    logger.info("Small PDF (≤12 pages) — using single-provider extraction");
+    return extractQuestions(pages, exam);
+  }
+
+  // Split into overlapping chunks
+  const chunks = splitIntoChunks(pages, 15, 5);
+  logger.info(`Distributed: ${pages.length} pages → ${chunks.length} overlapping chunks`);
+
+  // Track per-chunk extraction: { chunkIndex, pages, providerIndex }
+  // Each chunk starts with a different provider (round-robin)
+  const chunkTasks = chunks.map((chunk, i) => ({
+    chunk,
+    providerOffset: i % allProviders.length,
+    maxRetries: allProviders.length,
+  }));
+
+  const chunkResults: ChunkResult[] = [];
+
+  // Process chunks — run as many in parallel as possible
+  // Each chunk tries its assigned provider first, then falls back
+  const promises = chunkTasks.map(async (task) => {
+    const userPrompt = chunkToMarkdown(task.chunk);
+    const answerKeyDetected = hasAnswerKey(userPrompt);
+    const systemPrompt = buildSystemPrompt(exam, answerKeyDetected);
+
+    // Try providers starting from the round-robin offset
+    for (let retry = 0; retry < task.maxRetries; retry++) {
+      const pi = (task.providerOffset + retry) % allProviders.length;
+      const provider = allProviders[pi];
+
+      try {
+        logger.info(`Chunk ${task.chunk.chunkIndex}: trying ${provider.name} (pages ${task.chunk.pageRange[0]}-${task.chunk.pageRange[1]})`);
+        const raw = await provider.call(userPrompt, systemPrompt);
+        const extraction = parseExtractionResponse(raw, answerKeyDetected);
+
+        chunkResults.push({
+          chunkIndex: task.chunk.chunkIndex,
+          questions: extraction.questions,
+          passages: extraction.passages,
+          answerKeyFound: extraction.answerKeyFound,
+        });
+
+        logger.info(`Chunk ${task.chunk.chunkIndex}: ${provider.name} → ${extraction.questions.length} questions`);
+        return;
+      } catch (err) {
+        logger.warn(`Chunk ${task.chunk.chunkIndex}: ${provider.name} failed: ${err instanceof Error ? err.message : String(err)}`);
+        // Try next provider
+      }
+    }
+
+    logger.error(`Chunk ${task.chunk.chunkIndex}: ALL providers failed`);
+  });
+
+  await Promise.allSettled(promises);
+
+  if (chunkResults.length === 0) {
+    throw new Error(
+      "Distributed extraction: no chunk succeeded. All providers failed on all chunks. " +
+      "Check your API keys and network connectivity."
+    );
+  }
+
+  // Log failed chunks
+  const failedCount = chunks.length - chunkResults.length;
+  if (failedCount > 0) {
+    logger.warn(`Distributed: ${failedCount}/${chunks.length} chunks failed — data may be incomplete`);
+  }
+
+  // Merge
+  const merged = mergeChunks(chunkResults);
+  logger.info(`Distributed: ${chunks.length} chunks → ${merged.questions.length} total questions`);
+
+  return {
+    questions: merged.questions,
+    passages: merged.passages,
+    rawResponse: JSON.stringify(chunkResults.map(r => `${r.chunkIndex}:${r.questions.length}q`)),
+    answerKeyFound: merged.answerKeyFound,
+  };
 }

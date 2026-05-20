@@ -2,7 +2,7 @@ import { join } from "path";
 import { logger } from "../src/utils/logger.js";
 import { scrapeNta } from "../src/scrapers/nta-scraper.js";
 import { ocrPdf } from "../src/extractors/ocr-stage.js";
-import { extractQuestions } from "../src/extractors/structurer.js";
+import { extractQuestions, distributedExtract } from "../src/extractors/structurer.js";
 import { cacheDiagrams } from "../src/extractors/diagram-cacher.js";
 import { validateQuestionFile } from "../src/validators/auto-validator.js";
 import { exportDataset, writeDataset } from "../src/finalizers/exporter.js";
@@ -93,7 +93,9 @@ export async function batchProcess(config: BatchConfig): Promise<boolean> {
 
     // Step 3: Structure extraction
     logger.info("Step 3/5: AI extraction...");
-    const extraction = await extractQuestions(ocrOutput.pages, exam);
+    const extraction = ocrOutput.pages.length > 12
+      ? await distributedExtract(ocrOutput.pages, exam)
+      : await extractQuestions(ocrOutput.pages, exam);
     logger.info(`  ${extraction.questions.length} questions extracted`);
 
     if (extraction.questions.length === 0) {
