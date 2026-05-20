@@ -95,6 +95,17 @@ export interface Question {
 }
 
 // ---------------------------------------------------------------------------
+// Provenance — digital signature for origin verification
+// ---------------------------------------------------------------------------
+export interface Provenance {
+  author: string;
+  repo: string;
+  license: string;
+  pipelineVersion: string;
+  generatedAt: string;
+}
+
+// ---------------------------------------------------------------------------
 // QuestionFile — top-level wrapper
 // ---------------------------------------------------------------------------
 export interface QuestionFile {
@@ -113,6 +124,7 @@ export interface QuestionFile {
   scrapedAt: string;
   answerKeyFound: boolean;
   checksum: string;
+  provenance: Provenance;
   questions: Question[];
   passages: Passage[];
 }

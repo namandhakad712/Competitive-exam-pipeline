@@ -96,6 +96,7 @@ export async function exportDataset(input: ExportInput, revision = 1): Promise<Q
   );
 
   // Step 5: build file structure
+  const now = new Date().toISOString();
   const file: QuestionFile = {
     schema: "v4",
     exam,
@@ -109,9 +110,16 @@ export async function exportDataset(input: ExportInput, revision = 1): Promise<Q
     marksIncorrect,
     marksUnanswered,
     sections,
-    scrapedAt: new Date().toISOString(),
+    scrapedAt: now,
     answerKeyFound: input.answerKeyFound,
     checksum: "",
+    provenance: {
+      author: "Naman Dhakad",
+      repo: "https://github.com/namandhakad712/Jee-Neet-PYQ",
+      license: "PolyForm-Noncommercial-1.0.0",
+      pipelineVersion: "1.0.0",
+      generatedAt: now,
+    },
     questions: fullQuestions,
     passages,
   };

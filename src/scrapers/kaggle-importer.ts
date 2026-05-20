@@ -121,6 +121,7 @@ export async function importKaggleDataset(
         confidence: "low",
       });
     }
+    const now = new Date().toISOString();
     const file: QuestionFile = {
       schema: "v4",
       exam,
@@ -134,9 +135,16 @@ export async function importKaggleDataset(
       marksIncorrect: -1,
       marksUnanswered: 0,
       sections: { a: { label: "section a", total: questions.length, required: questions.length, mandatory: true } },
-      scrapedAt: new Date().toISOString(),
+      scrapedAt: now,
       answerKeyFound: true,
       checksum: "",
+      provenance: {
+        author: "Naman Dhakad",
+        repo: "https://github.com/namandhakad712/Jee-Neet-PYQ",
+        license: "PolyForm-Noncommercial-1.0.0",
+        pipelineVersion: "1.0.0",
+        generatedAt: now,
+      },
       questions,
       passages: [],
     };
