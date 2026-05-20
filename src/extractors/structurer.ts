@@ -176,6 +176,7 @@ async function callNvidia(prompt: string, systemPrompt: string): Promise<string>
         temperature: 0.1,
         max_tokens: 64000,
       }),
+      signal: AbortSignal.timeout(120_000),
     });
 
     if (!response.ok) {
