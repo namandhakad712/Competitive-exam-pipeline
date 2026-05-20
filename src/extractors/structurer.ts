@@ -7,18 +7,24 @@ const NVIDIA_API = "https://integrate.api.nvidia.com/v1/chat/completions";
 const CEREBRAS_API = "https://api.cerebras.ai/v1/chat/completions";
 const GEMINI_API = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 const LONGCAT_API = "https://api.longcat.ai/v1/chat/completions";
+const POOLSIDE_API = "https://inference.poolside.ai/v1/chat/completions";
+const VANCHIN_API = "https://vanchin.streamlake.ai/api/gateway/v1/endpoints";
 
 // ---- API keys ----
 const NVIDIA_KEY = process.env.NVIDIA_API_KEY ?? "";
 const CEREBRAS_KEY = process.env.CEREBRAS_API_KEY ?? "";
 const GEMINI_KEY = process.env.GEMINI_API_KEY ?? "";
 const LONGCAT_KEY = process.env.LONGCAT_API_KEY ?? "";
+const POOLSIDE_KEY = process.env.POOLSIDE_API_KEY ?? "";
+const VANCHIN_KEY = process.env.VC_API_KEY ?? "";
 
 // ---- Rate limiters (matching real free tier caps) ----
 const nvidiaLimiter = new RateLimiter({ maxRequests: 40, windowMs: 60_000 });
 const cerebrasLimiter = new RateLimiter({ maxRequests: 5, windowMs: 60_000 });
 const geminiLimiter = new RateLimiter({ maxRequests: 5, windowMs: 60_000 });
 const longcatLimiter = new RateLimiter({ maxRequests: 30, windowMs: 60_000 });
+const poolsideLimiter = new RateLimiter({ maxRequests: 30, windowMs: 60_000 });
+const vanchinLimiter = new RateLimiter({ maxRequests: 30, windowMs: 60_000 });
 
 const MAX_PAGES_CEREBRAS = 12;
 
@@ -234,6 +240,69 @@ async function callLongcat(prompt: string, systemPrompt: string): Promise<string
   });
 }
 
+async function callPoolside(prompt: string, systemPrompt: string): Promise<string> {
+  return poolsideLimiter.call(async () => {
+    const response = await fetch(POOLSIDE_API, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${POOLSIDE_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "poolside/laguna-m.1",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.1,
+        max_tokens: 32000,
+        chat_template_kwargs: { enable_thinking: false },
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`Poolside API ${response.status}: ${body.slice(0, 200)}`);
+    }
+
+    const data = (await response.json()) as {
+      choices: Array<{ message: { content: string } }>;
+    };
+    return data.choices?.[0]?.message?.content ?? "";
+  });
+}
+
+async function callVanchin(prompt: string, systemPrompt: string): Promise<string> {
+  return vanchinLimiter.call(async () => {
+    const response = await fetch(VANCHIN_API, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${VANCHIN_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "ep-8jt098-1774548880917375225",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.1,
+        max_tokens: 32000,
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`Vanchin API ${response.status}: ${body.slice(0, 200)}`);
+    }
+
+    const data = (await response.json()) as {
+      choices: Array<{ message: { content: string } }>;
+    };
+    return data.choices?.[0]?.message?.content ?? "";
+  });
+}
+
 // ===================== Main entry point =====================
 
 export async function extractQuestions(
@@ -269,6 +338,18 @@ export async function extractQuestions(
       call: (p, s) => callLongcat(p, s),
       supportsLarge: true,
     },
+    {
+      name: "Poolside",
+      key: POOLSIDE_KEY,
+      call: (p, s) => callPoolside(p, s),
+      supportsLarge: true,
+    },
+    {
+      name: "Vanchin",
+      key: VANCHIN_KEY,
+      call: (p, s) => callVanchin(p, s),
+      supportsLarge: true,
+    },
   ];
 
   for (const provider of providers) {
@@ -290,6 +371,7 @@ export async function extractQuestions(
 
   throw new Error(
     "No AI provider succeeded. Set at least one of: NVIDIA_API_KEY (40 RPM, recommended), " +
-    "CEREBRAS_API_KEY (5 RPM), GEMINI_API_KEY (5 RPM), LONGCAT_API_KEY (50M tokens)."
+    "CEREBRAS_API_KEY (5 RPM), GEMINI_API_KEY (5 RPM), LONGCAT_API_KEY (50M tokens), " +
+    "POOLSIDE_API_KEY, VC_API_KEY (Vanchin)."
   );
 }

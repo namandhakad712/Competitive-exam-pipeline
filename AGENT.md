@@ -395,6 +395,8 @@ $env:NVIDIA_API_KEY              # Optional — 40 RPM, recommended primary extr
 $env:CEREBRAS_API_KEY            # Optional — 5 RPM, falls back to NVIDIA
 $env:GEMINI_API_KEY              # Optional — 5 RPM
 $env:LONGCAT_API_KEY             # Optional — 50M tokens
+$env:POOLSIDE_API_KEY            # Optional — poolside/laguna-m.1
+$env:VC_API_KEY                  # Optional — Vanchin KAT-Coder-Air-V1
 $env:KAGGLE_USERNAME          # Optional, for Kaggle import
 $env:KAGGLE_KEY               # Optional, for Kaggle import
 $env:EDITOR                   # Editor for review edit mode (default: notepad)
@@ -579,7 +581,7 @@ Tombstone: removed IDs never reused
 7. **Checksum = SHA-256 before adding checksum field**
 8. **Human review = accuracy guarantee** — AI 80-95%, validation +5%, human catches rest
 9. **Zero Rankify schema changes** — 30-line adapter
-10. **Free tier only** — Mistral OCR 50k TPM / 1 RPS, Cerebras 5 req/min / 30k TPM, Gemini 2.5 Flash 5 RPM / 250k TPM / 20 RPD
+10. **Free tier only** — Mistral OCR 50k TPM / 1 RPS, NVIDIA NIM 40 RPM (primary), Poolside, Vanchin, LongCat 50M tokens, Cerebras 5 RPM, Gemini 5 RPM
 11. **No Docker, no database** — JSON files ARE the database
 
 ---
