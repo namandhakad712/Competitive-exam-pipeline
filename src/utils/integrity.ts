@@ -1,5 +1,4 @@
-import { readFile, writeFile } from "fs/promises";
-import { existsSync } from "fs";
+import { readFile } from "fs/promises";
 import { join } from "path";
 import type { Stats } from "fs";
 import { logger } from "./logger.js";
