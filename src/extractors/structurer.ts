@@ -45,7 +45,9 @@ interface Provider {
 }
 
 // ---- Answer key detection ----
+// Comprehensive patterns to catch all answer key formats
 const ANSWER_KEY_PATTERNS = [
+  // Standard headers
   /answer\s*key/i,
   /answer\s*:/i,
   /ans\s*\.?\s*:/i,
@@ -55,6 +57,35 @@ const ANSWER_KEY_PATTERNS = [
   /answer\s*table/i,
   /key\s*to\s*questions/i,
   /solution\s*key/i,
+
+  // Inline answer markers: [Ans: 2], (Ans: 3), {Ans: 1}
+  /\[?\s*(?:ans|answer)\s*\.?\s*:\s*\]?/i,
+  /\[?\s*(?:ans|answer)\s*\.?\s*\]?\s*[:.\-]\s*\d+/i,
+  /\(?\s*(?:ans|answer)\s*\.?\s*\)?\s*[:.\-]\s*\d+/i,
+
+  // Table patterns: number + answer columns, pipe-separated
+  /(?:\|\s*(?:q|no|question|ans|answer)\s*\|){2,}/i,
+  /(?:q\.?\s*(?:no)?\s*\|.*\|.*ans)/i,
+
+  // Numeric sequential + answer format (answer key tables)
+  /(?:^|\n)\s*\d{1,3}\s+[a-dA-D]\s*(?:\n|$)/m,
+
+  // "Ans: 1)" or "Ans. 2)" format
+  /ans\s*\.?\s*:?\s*\d+\s*\)/i,
+
+  // Answer grid pattern: rows of Q# → answer letter/number
+  /(?:^|\n)\s*\d{1,2}[.)]\s+[A-D]\s+\d{1,2}[.)]\s+[A-D]/m,
+
+  // "Key: 1-A, 2-B, 3-C" pattern
+  /\d+\s*[-–]\s*[A-Da-d]/,
+
+  // "Answer Key: 1(2) 2(4) 3(1) 4(3)" pattern (NTA style)
+  /\d+\s*\(\s*[1-4]\s*\)/,
+
+  // Latex answer key commands
+  /\\answer\{/i,
+  /\\correct\b/i,
+  /\\key\b/i,
 ];
 
 function hasAnswerKey(text: string): boolean {
@@ -109,11 +140,13 @@ Rules:
    - source: "official-pdf"
 
 3. Answer keys are at the END of the paper. Read to the last page before filling answers.
-4. NEVER invent or guess an answer. If you are unsure, set answer to "".
-5. If a block of text appears before multiple questions without diagrams, it's likely a passage.
-6. For assertion-reason questions: set options to null.
-7. For numerical (NAT) questions: set options to null, negativeMarks to 0.
-8. Output a valid JSON object with two keys: "questions" (array) and "passages" (array).
+4. Answers can also appear inline like [Ans: 2], (Ans: 3), {Ans: 1} next to question options in the paper.
+5. Answer keys may be in table format with columns for question number and answer.
+6. NEVER invent or guess an answer. If you are unsure, set answer to "".
+7. If a block of text appears before multiple questions without diagrams, it's likely a passage.
+8. For assertion-reason questions: set options to null.
+9. For numerical (NAT) questions: set options to null, negativeMarks to 0.
+10. Output a valid JSON object with two keys: "questions" (array) and "passages" (array).
 
 Respond ONLY with the JSON. No explanation, no markdown formatting.`;
 }

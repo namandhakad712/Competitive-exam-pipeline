@@ -331,11 +331,60 @@ export const codeToSubject: Record<string, Subject> = {
 };
 
 // ---------------------------------------------------------------------------
-// HELPERS
+// FUZZY MATCHING
 // ---------------------------------------------------------------------------
+
+/**
+ * Levenshtein distance between two strings.
+ */
+function levenshtein(a: string, b: string): number {
+  const an = a.length;
+  const bn = b.length;
+  const matrix: number[][] = [];
+
+  for (let i = 0; i <= an; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= bn; j++) {
+    matrix[0][j] = j;
+  }
+
+  for (let i = 1; i <= an; i++) {
+    for (let j = 1; j <= bn; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost,
+      );
+    }
+  }
+
+  return matrix[an][bn];
+}
+
+/**
+ * Normalize a topic using:
+ * 1. Exact match (fast path)
+ * 2. Fuzzy match (Levenshtein distance <= 2)
+ * 3. Fallback to raw string
+ */
 export function normalizeTopic(raw: string): string {
   const key = raw.trim().toLowerCase();
-  return topicAliases[key] ?? key;
+
+  // 1. Exact match
+  const exact = topicAliases[key];
+  if (exact) return exact;
+
+  // 2. Fuzzy match (Levenshtein distance <= 2)
+  for (const [alias, canonical] of Object.entries(topicAliases)) {
+    if (levenshtein(key, alias) <= 2) {
+      return canonical;
+    }
+  }
+
+  // 3. Fallback
+  return key;
 }
 
 export function isValidTag(subject: Subject, tag: string): boolean {

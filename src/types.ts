@@ -269,6 +269,56 @@ export interface CropCoords {
 }
 
 // ---------------------------------------------------------------------------
+// Enhanced OCR types (Mistral structured annotations)
+// ---------------------------------------------------------------------------
+export interface MistralImage {
+  id: string;
+  top_left_x: number;
+  top_left_y: number;
+  bottom_right_x: number;
+  bottom_right_y: number;
+  image_base64: string;
+}
+
+export interface MistralOcrPage {
+  index: number;
+  markdown: string;
+  images: MistralImage[];
+}
+
+export interface EnhancedOcrResult {
+  pages: PageContent[];
+  images: Map<number, string>;
+  mistralPages: MistralOcrPage[];
+  structuredAnnotation: unknown | null;
+  bboxAnnotation: unknown | null;
+}
+
+export type ProviderName = "nvidia" | "longcat" | "poolside" | "vanchin" | "gemini" | "cerebras";
+
+export interface ConsensusCandidate {
+  provider: ProviderName;
+  questions: PartialQuestion[];
+  passages: Passage[];
+  answerKeyFound: boolean;
+}
+
+export interface Conflict {
+  questionNumber: number;
+  reason: "missing_from_all" | "low_agreement";
+  candidates?: PartialQuestion[];
+  consensus?: PartialQuestion;
+}
+
+export interface ConsensusResult {
+  questions: PartialQuestion[];
+  passages: Passage[];
+  conflicts: Conflict[];
+  answerKeyFound: boolean;
+  providerResults: ConsensusCandidate[];
+}
+
+// ---------------------------------------------------------------------------
 // Scraper types
 // ---------------------------------------------------------------------------
 export interface ScraperResult {
