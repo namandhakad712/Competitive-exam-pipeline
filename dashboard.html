@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pipeline Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0b10;--surface:#12141e;--surface-2:#1a1d2a;--border:#232738;--border-light:#2d3247;
+  --text:#e6e8f0;--text-dim:#8b91a8;--text-muted:#5a5f78;
+  --accent:#4b8dff;--accent-dim:#1a2a50;--accent-glow:rgba(75,141,255,.12);
+  --green:#34d399;--green-dim:#0d2e21;--green-glow:rgba(52,211,147,.1);
+  --amber:#fbbf24;--amber-dim:#2e260d;--amber-glow:rgba(251,191,36,.1);
+  --red:#f87171;--red-dim:#2e1111;--red-glow:rgba(248,113,113,.1);
+  --radius:10px;--radius-sm:6px;
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);font-size:14px;display:flex;flex-direction:column}
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:var(--border-light)}
+
+/* ── Top bar ── */
+.topbar{
+  display:flex;align-items:center;gap:10px;padding:8px 16px;
+  background:var(--surface);border-bottom:1px solid var(--border);
+  flex-shrink:0;min-height:46px;flex-wrap:wrap
+}
+.topbar .brand{font-weight:700;font-size:14px;letter-spacing:-.02em;display:flex;align-items:center;gap:7px;margin-right:12px}
+.topbar .live{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;flex-shrink:0}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 6px var(--green)}50%{opacity:.3}}
+.topbar .pipe-status{font-size:11px;padding:2px 10px;border-radius:10px;background:var(--surface-2);color:var(--text-dim);display:flex;align-items:center;gap:6px}
+.topbar .pipe-status .sdot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.topbar .pipe-status .sdot.idle{background:var(--text-muted)}
+.topbar .pipe-status .sdot.running{background:var(--amber);animation:pulse .6s infinite}
+.topbar .pipe-status .sdot.done{background:var(--green)}
+.topbar .pipe-status .sdot.error{background:var(--red)}
+.topbar .sep{width:1px;height:22px;background:var(--border);flex-shrink:0}
+.topbar .stage-btn{padding:4px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface-2);color:var(--text-dim);cursor:pointer;font-size:11px;font-family:'Inter',sans-serif;transition:.12s;white-space:nowrap}
+.topbar .stage-btn:hover{background:var(--accent-dim);border-color:var(--accent);color:var(--text)}
+.topbar .stage-btn:disabled{opacity:.3;cursor:not-allowed}
+.topbar .stage-btn.danger:hover{background:var(--red-dim);border-color:var(--red);color:var(--red)}
+.topbar .stage-btn.prim{background:var(--accent);border-color:var(--accent);color:#fff}
+.topbar .stage-btn.prim:hover{filter:brightness(1.1)}
+.topbar .spacer{flex:1}
+.topbar .custom-input{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:3px 8px;font-size:11px;color:var(--text);font-family:'JetBrains Mono',monospace;width:280px;outline:none;transition:.15s}
+.topbar .custom-input:focus{border-color:var(--accent)}
+
+/* ── Main grid ── */
+.main{flex:1;display:grid;grid-template-columns:280px 1fr 280px;gap:0;overflow:hidden}
+@media(max-width:1100px){.main{grid-template-columns:220px 1fr 220px}}
+@media(max-width:780px){.main{grid-template-columns:1fr;grid-template-rows:auto 1fr auto}}
+
+/* ── Panels ── */
+.panel{display:flex;flex-direction:column;overflow:hidden}
+.panel-left{border-right:1px solid var(--border);background:var(--surface)}
+.panel-center{background:var(--bg)}
+.panel-right{border-left:1px solid var(--border);background:var(--surface)}
+
+.panel-head{padding:10px 14px 8px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0}
+.panel-head .count{font-size:10px;color:var(--text-muted);background:var(--surface-2);padding:0 6px;border-radius:8px;font-weight:500}
+
+/* ── Stages ── */
+.stage-list{padding:8px;overflow-y:auto;flex:1}
+.stage-card{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg);margin-bottom:4px;cursor:pointer;transition:.15s;font-size:12px}
+.stage-card:hover{border-color:var(--border-light)}
+.stage-card .sc-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--text-muted);transition:.3s}
+.stage-card .sc-dot.running{background:var(--amber);box-shadow:0 0 6px var(--amber-glow);animation:pulse .8s infinite}
+.stage-card .sc-dot.done{background:var(--green);box-shadow:0 0 6px var(--green-glow)}
+.stage-card .sc-dot.error{background:var(--red);box-shadow:0 0 6px var(--red-glow)}
+.stage-card .sc-icon{font-size:13px;flex-shrink:0}
+.stage-card .sc-name{font-weight:500;margin-right:auto}
+.stage-card .sc-time{font-size:10px;color:var(--text-muted)}
+.stage-card .sc-run{font-size:9px;padding:2px 7px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-dim);cursor:pointer;transition:.12s}
+.stage-card .sc-run:hover{background:var(--accent-dim);border-color:var(--accent);color:var(--text)}
+.stage-card .sc-run:disabled{opacity:.2;cursor:not-allowed}
+
+/* ── Logs ── */
+.log-area{padding:10px 14px;overflow-y:auto;flex:1}
+.log-entry{display:flex;gap:8px;padding:2px 0;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.6}
+.log-entry .lt{color:var(--text-muted);flex-shrink:0;width:44px;font-size:10px}
+.log-entry .ll{flex-shrink:0;width:38px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;opacity:.8}
+.log-entry .ll.info{color:var(--accent)}
+.log-entry .ll.ok{color:var(--green)}
+.log-entry .ll.warn{color:var(--amber)}
+.log-entry .ll.err{color:var(--red)}
+.log-entry .ll.cmd{color:#a78bfa}
+.log-entry .ll.data{color:var(--cyan);--cyan:#22d3ee}
+.log-entry .lm{color:var(--text-dim);word-break:break-word}
+.log-entry.ok .lm{color:var(--text)}
+
+/* ── Tabs for right panel ── */
+.tab-bar{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+.tab-btn{padding:8px 14px;font-size:11px;font-weight:500;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;transition:.15s}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-content{flex:1;overflow-y:auto;display:none}
+.tab-content.active{display:block}
+
+/* Stats */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px}
+.stat-item{padding:8px 10px;border-radius:var(--radius-sm);background:var(--bg);border:1px solid var(--border)}
+.stat-item .sv{font-size:18px;font-weight:700;letter-spacing:-.02em}
+.stat-item .sv.g{color:var(--green)}
+.stat-item .sv.b{color:var(--accent)}
+.stat-item .sv.a{color:var(--amber)}
+.stat-item .sl{font-size:10px;color:var(--text-muted);margin-top:2px;text-transform:uppercase;letter-spacing:.04em}
+
+/* Files */
+.file-tree{padding:6px 10px;font-size:11px;font-family:'JetBrains Mono',monospace}
+.file-item{display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:4px;cursor:pointer;transition:.12s}
+.file-item:hover{background:var(--surface-2)}
+.file-item .fi{font-size:12px;flex-shrink:0}
+.file-item .fn{color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-item .fs{font-size:9px;color:var(--text-muted);margin-left:auto;flex-shrink:0}
+.file-item.child{padding-left:20px}
+
+/* ── Review modal ── */
+.review-overlay{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:20px}
+.review-overlay.show{display:flex}
+.review-modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);width:700px;max-width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.review-head{display:flex;align-items:center;gap:10px;padding:14px 18px 10px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
+.review-head .rh-title{font-weight:600;font-size:14px}
+.review-head .rh-progress{font-size:11px;color:var(--text-muted);margin-left:auto}
+.review-head .rh-close{width:26px;height:26px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-dim);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+.review-head .rh-close:hover{background:var(--red-dim);border-color:var(--red);color:var(--red)}
+.review-body{flex:1;overflow-y:auto;padding:14px 18px}
+.review-meta{display:flex;gap:16px;font-size:11px;color:var(--text-muted);margin-bottom:10px;flex-wrap:wrap}
+.review-meta span{display:flex;align-items:center;gap:4px}
+.review-qtext{font-size:14px;line-height:1.7;color:var(--text);margin-bottom:14px;padding:10px 14px;background:var(--bg);border-radius:var(--radius-sm);border:1px solid var(--border)}
+.review-options{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px}
+.review-opt{padding:8px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg);font-size:12px;display:flex;align-items:center;gap:8px}
+.review-opt .ol{font-weight:600;color:var(--accent)}
+.review-opt .ot{color:var(--text-dim)}
+.review-actions{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.review-actions button{padding:7px 16px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface-2);color:var(--text);cursor:pointer;font-size:12px;font-family:'Inter',sans-serif;transition:.12s}
+.review-actions button:hover{background:var(--accent-dim);border-color:var(--accent)}
+.review-actions button.accept{background:var(--green-dim);border-color:var(--green);color:var(--green)}
+.review-actions button.accept:hover{background:var(--green)}
+.review-actions button.edit{border-color:var(--amber);color:var(--amber)}
+.review-actions button.edit:hover{background:var(--amber-dim)}
+.review-actions button.skip{background:var(--surface-2);color:var(--text-muted)}
+.review-actions button.flag{background:var(--red-dim);border-color:var(--red);color:var(--red)}
+.review-actions button.flag:hover{background:var(--red)}
+.review-textarea{width:100%;min-height:80px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;resize:vertical;outline:none;display:none;margin-top:8px}
+.review-textarea.show{display:block}
+.review-textarea:focus{border-color:var(--accent)}
+.review-summary{padding:20px;text-align:center}
+.review-summary .rs-num{font-size:36px;font-weight:800;color:var(--green);letter-spacing:-.03em}
+.review-summary .rs-label{font-size:12px;color:var(--text-muted);margin-top:4px}
+.review-summary .rs-detail{display:flex;gap:24px;justify-content:center;margin-top:12px;font-size:12px}
+.review-summary .rs-detail div{display:flex;align-items:center;gap:4px}
+
+/* ── Progress bar ── */
+.prog-bar{height:3px;background:var(--border);border-radius:2px;overflow:hidden;flex-shrink:0}
+.prog-bar .prog-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .4s ease}
+.prog-bar .prog-fill.done{background:var(--green)}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="live"></span> Pipeline Dashboard</div>
+  <div class="pipe-status" id="pipeStatus"><span class="sdot idle"></span><span id="pipeStage">idle</span></div>
+  <span class="sep"></span>
+  <button class="stage-btn prim" onclick="runStage('test-models')">🔌 Test Models</button>
+  <button class="stage-btn" onclick="runStage('scrape')">📥 Scrape</button>
+  <button class="stage-btn" onclick="runStage('extract')">🧠 Extract</button>
+  <button class="stage-btn" onclick="runStage('validate')">🔍 Validate</button>
+  <button class="stage-btn" onclick="runStage('finalize')">📦 Finalize</button>
+  <button class="stage-btn" onclick="runStage('verify')">🔐 Verify</button>
+  <button class="stage-btn" onclick="runStage('stats')">📊 Stats</button>
+  <span class="sep"></span>
+  <button class="stage-btn danger" id="stopBtn" onclick="stopPipeline()" style="display:none">⏹ Stop</button>
+  <span class="spacer"></span>
+  <input class="custom-input" id="customCmd" placeholder="custom command..." spellcheck="false"
+    onkeydown="if(event.key==='Enter'&&this.value.trim())runCustom(this.value.trim())">
+  <button class="stage-btn" onclick="const i=document.getElementById('customCmd');if(i.value.trim())runCustom(i.value.trim())">▶</button>
+  <span class="sep"></span>
+  <button class="stage-btn" onclick="startReview()">👤 Review</button>
+</div>
+<div class="prog-bar" id="progBar"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
+
+<div class="main">
+
+  <!-- LEFT: Stages -->
+  <div class="panel panel-left">
+    <div class="panel-head">Pipeline <span class="count" id="stageCount">0</span></div>
+    <div class="stage-list" id="stageList"></div>
+  </div>
+
+  <!-- CENTER: Logs -->
+  <div class="panel panel-center">
+    <div class="panel-head">Console <span class="count" id="logCount">0</span></div>
+    <div class="log-area" id="logArea"></div>
+  </div>
+
+  <!-- RIGHT: Stats + Files -->
+  <div class="panel panel-right">
+    <div class="tab-bar">
+      <div class="tab-btn active" onclick="switchTab('stats')">Stats</div>
+      <div class="tab-btn" onclick="switchTab('files')">Files</div>
+    </div>
+    <div class="tab-content active" id="tabStats">
+      <div class="stat-grid" id="statsGrid">
+        <div class="stat-item"><div class="sv" id="statDatasets">0</div><div class="sl">Datasets</div></div>
+        <div class="stat-item"><div class="sv b" id="statQuestions">0</div><div class="sl">Questions</div></div>
+        <div class="stat-item"><div class="sv g" id="statSubjects">0</div><div class="sl">Subjects</div></div>
+        <div class="stat-item"><div class="sv a" id="statModels">6</div><div class="sl">AI Models</div></div>
+      </div>
+    </div>
+    <div class="tab-content" id="tabFiles">
+      <div class="file-tree" id="fileTree"><div style="color:var(--text-muted);padding:10px;font-size:11px">Loading...</div></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- REVIEW MODAL -->
+<div class="review-overlay" id="reviewOverlay">
+  <div class="review-modal">
+    <div class="review-head">
+      <span class="rh-title">👤 Human Review</span>
+      <span class="rh-progress" id="reviewProgress">0 / 0</span>
+      <button class="rh-close" onclick="closeReview()">✕</button>
+    </div>
+    <div class="review-body" id="reviewBody">
+      <div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px">
+        <div style="font-size:32px;margin-bottom:10px">📋</div>
+        <div>Enter exam details to start a review session</div>
+        <div style="margin-top:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+          <input id="revExam" placeholder="exam (jeemain)" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;width:120px">
+          <input id="revYear" placeholder="year (2025)" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;width:100px">
+          <input id="revShift" placeholder="shift (1)" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;width:80px">
+          <button class="stage-btn prim" onclick="startReviewSession()" style="font-size:12px">▶ Start</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:3456';
+let stages = [];
+let logs = [];
+let autoScroll = true;
+
+// ═══════════════════════════════════════════════════════════════
+// SSE
+// ═══════════════════════════════════════════════════════════════
+
+function connectSSE() {
+  const es = new EventSource(API + '/api/v1/events');
+  es.addEventListener('status', e => {
+    const d = JSON.parse(e.data);
+    updatePipelineStatus(d);
+  });
+  es.addEventListener('logs', e => {
+    const d = JSON.parse(e.data);
+    d.forEach(l => addLog(l));
+  });
+  es.addEventListener('log', e => {
+    addLog(JSON.parse(e.data));
+  });
+  es.addEventListener('files', () => {
+    loadFiles();
+    loadStats();
+  });
+  es.addEventListener('review', e => {
+    const d = JSON.parse(e.data);
+    if (d.action === 'progress') {
+      document.getElementById('reviewProgress').textContent = `${d.index} / ${d.total}`;
+      document.getElementById('progFill').style.width = `${(d.index/d.total)*100}%`;
+    }
+    if (d.action === 'complete') {
+      showReviewSummary(d.results);
+    }
+  });
+  es.onerror = () => setTimeout(connectSSE, 2000);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PIPELINE STATUS
+// ═══════════════════════════════════════════════════════════════
+
+function updatePipelineStatus(d) {
+  const si = document.getElementById('pipeStatus');
+  const sn = document.getElementById('pipeStage');
+  const sd = si.querySelector('.sdot');
+  sd.className = 'sdot ' + (d.status || 'idle');
+  sn.textContent = d.status === 'running' ? d.stage : d.status;
+  document.getElementById('stopBtn').style.display = d.status === 'running' ? '' : 'none';
+
+  // Update stage cards
+  document.querySelectorAll('.stage-card').forEach(el => {
+    const name = el.dataset.stage;
+    const dot = el.querySelector('.sc-dot');
+    dot.className = 'sc-dot';
+    if (name === d.stage && d.status === 'running') dot.classList.add('running');
+    else if (name === d.stage && d.status === 'done') dot.classList.add('done');
+    else if (name === d.stage && d.status === 'error') dot.classList.add('error');
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LOGS
+// ═══════════════════════════════════════════════════════════════
+
+function addLog(l) {
+  logs.push(l);
+  const area = document.getElementById('logArea');
+  const d = document.createElement('div');
+  d.className = 'log-entry' + (l.type === 'ok' ? ' ok' : '');
+  const t = l.ts ? l.ts.slice(11, 19) : '';
+  d.innerHTML = `<span class="lt">${t}</span><span class="ll ${l.type}">${l.type}</span><span class="lm">${esc(l.msg)}</span>`;
+  area.appendChild(d);
+  document.getElementById('logCount').textContent = logs.length;
+  if (autoScroll) area.scrollTop = area.scrollHeight;
+}
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ═══════════════════════════════════════════════════════════════
+// STAGES
+// ═══════════════════════════════════════════════════════════════
+
+async function loadStages() {
+  try {
+    const r = await fetch(API + '/api/v1/pipeline/stages');
+    const d = await r.json();
+    stages = d.stages || [];
+    renderStages();
+  } catch {}
+}
+function renderStages() {
+  const list = document.getElementById('stageList');
+  list.innerHTML = stages.map(s => `
+    <div class="stage-card" data-stage="${s.name}">
+      <span class="sc-dot"></span>
+      <span class="sc-icon">${s.icon}</span>
+      <span class="sc-name">${s.name}</span>
+      <span class="sc-time"></span>
+      <button class="sc-run" onclick="event.stopPropagation();runStage('${s.name}')">▶</button>
+    </div>
+  `).join('');
+  document.getElementById('stageCount').textContent = stages.length;
+}
+
+async function runStage(name) {
+  try {
+    await fetch(API + '/api/v1/pipeline/run', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({stage: name, exam: 'jeemain', year: 2025, shift: '1'})
+    });
+  } catch(e) { addLog({ts:new Date().toISOString(),type:'err',msg:'Failed: '+e.message}); }
+}
+async function runCustom(cmd) {
+  try {
+    await fetch(API + '/api/v1/pipeline/custom', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({command: cmd})
+    });
+    document.getElementById('customCmd').value = '';
+  } catch(e) { addLog({ts:new Date().toISOString(),type:'err',msg:'Failed: '+e.message}); }
+}
+async function stopPipeline() {
+  try { await fetch(API + '/api/v1/pipeline/stop', {method:'POST'}); }
+  catch(e) { addLog({ts:new Date().toISOString(),type:'err',msg:'Failed: '+e.message}); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STATS
+// ═══════════════════════════════════════════════════════════════
+
+async function loadStats() {
+  try {
+    const r = await fetch(API + '/api/v1/stats');
+    const d = await r.json();
+    if (d.success) {
+      document.getElementById('statDatasets').textContent = d.totalDatasets || 0;
+      document.getElementById('statQuestions').textContent = d.totalQuestions || 0;
+      document.getElementById('statSubjects').textContent = d.totalSubjects || 0;
+    }
+  } catch {}
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FILES
+// ═══════════════════════════════════════════════════════════════
+
+async function loadFiles() {
+  try {
+    const r = await fetch(API + '/api/v1/files/list');
+    const d = await r.json();
+    const files = d.files || [];
+    const tree = document.getElementById('fileTree');
+    tree.innerHTML = files.map(f => {
+      const size = f.size > 1024 ? (f.size/1024).toFixed(1)+'KB' : f.size+'B';
+      const label = f.exam ? `${f.exam}/${f.year}/${f.shift}/paper.json` : f.path;
+      return `<div class="file-item" title="${f.path}">
+        <span class="fi">📄</span>
+        <span class="fn">${label}</span>
+        <span class="fs">${f.total || '?'}q · ${size}</span>
+      </div>`;
+    }).join('');
+  } catch {}
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════════════════════
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.textContent.trim().toLowerCase() === name));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab' + name.charAt(0).toUpperCase() + name.slice(1)));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// REVIEW
+// ═══════════════════════════════════════════════════════════════
+
+function startReview() { document.getElementById('reviewOverlay').classList.add('show'); }
+function closeReview() { document.getElementById('reviewOverlay').classList.remove('show'); }
+
+async function startReviewSession() {
+  const exam = document.getElementById('revExam').value || 'jeemain';
+  const year = parseInt(document.getElementById('revYear').value) || 2025;
+  const shift = document.getElementById('revShift').value || '1';
+  try {
+    const r = await fetch(API + '/api/v1/review/start', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({exam, year, shift})
+    });
+    const d = await r.json();
+    if (!d.ok) { alert(d.error || 'Failed to start review'); return; }
+    document.getElementById('reviewProgress').textContent = `0 / ${d.total}`;
+    document.getElementById('progFill').style.width = '0%';
+    document.getElementById('progBar').style.display = '';
+    loadReviewQuestion();
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+async function loadReviewQuestion() {
+  const body = document.getElementById('reviewBody');
+  try {
+    const r = await fetch(API + '/api/v1/review/current');
+    const d = await r.json();
+    if (d.done) { showReviewSummary(d.results); return; }
+    renderReviewQuestion(d);
+  } catch(e) {
+    body.innerHTML = `<div style="padding:20px;color:var(--red)">Error: ${e.message}</div>`;
+  }
+}
+
+function renderReviewQuestion(d) {
+  const q = d.question;
+  if (!q) { document.getElementById('reviewBody').innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted)">No questions</div>'; return; }
+  document.getElementById('reviewProgress').textContent = `${d.index} / ${d.total}`;
+  document.getElementById('progFill').style.width = `${d.progress}%`;
+
+  const opts = q.options ? Object.entries(q.options).map(([k,v]) =>
+    `<div class="review-opt"><span class="ol">${esc(k)}</span><span class="ot">${esc(v)}</span></div>`
+  ).join('') : '';
+
+  const body = document.getElementById('reviewBody');
+  body.innerHTML = `
+    <div class="review-meta">
+      <span>📌 Q${d.index + 1} / ${d.total}</span>
+      <span>📂 ${q.subject || '?'} · ${q.type || '?'}</span>
+      <span>🏷️ ${(q.topic||['?']).join(', ')}</span>
+      <span>📊 ${q.positiveMarks||4}/${q.negativeMarks||-1}</span>
+    </div>
+    <div class="review-qtext">${esc(q.question)}</div>
+    ${opts ? `<div class="review-options">${opts}</div>` : ''}
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">
+      Answer: <span style="color:var(--accent);font-weight:600">${q.answer || '(none)'}</span>
+      ${q.diagramFiles?.length ? `· Diagrams: ${q.diagramFiles.length}` : ''}
+    </div>
+    <textarea class="review-textarea" id="reviewEditArea" placeholder="Edit question text / answer here..."></textarea>
+    <div class="review-actions">
+      <button class="accept" onclick="reviewAction('accept')">✓ Accept</button>
+      <button class="edit" onclick="document.getElementById('reviewEditArea').classList.toggle('show')">✎ Edit</button>
+      <button class="skip" onclick="reviewAction('skip')">→ Skip</button>
+      <button class="flag" onclick="reviewAction('flag')">⚠ Flag</button>
+    </div>
+  `;
+}
+
+async function reviewAction(action) {
+  const body = {};
+  body.action = action;
+  const editArea = document.getElementById('reviewEditArea');
+  if (action === 'edit' && editArea && editArea.value.trim()) {
+    body.note = editArea.value.trim();
+  }
+  try {
+    const r = await fetch(API + '/api/v1/review/action', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (d.done) { showReviewSummary(d.results); return; }
+    renderReviewQuestion(d);
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+function showReviewSummary(results) {
+  document.getElementById('progFill').style.width = '100%';
+  document.getElementById('progFill').classList.add('done');
+  const accepted = (results||[]).filter(r => r.action === 'accept').length;
+  const edited = (results||[]).filter(r => r.action === 'edit').length;
+  const skipped = (results||[]).filter(r => r.action === 'skip').length;
+  const flagged = (results||[]).filter(r => r.action === 'flag').length;
+  document.getElementById('reviewBody').innerHTML = `
+    <div class="review-summary">
+      <div class="rs-num">${accepted + edited}</div>
+      <div class="rs-label">Questions Reviewed</div>
+      <div class="rs-detail">
+        <div>✓ ${accepted}</div>
+        <div style="color:var(--amber)">✎ ${edited}</div>
+        <div style="color:var(--text-muted)">→ ${skipped}</div>
+        <div style="color:var(--red)">⚠ ${flagged}</div>
+      </div>
+      <div style="margin-top:12px">
+        <button class="stage-btn prim" onclick="closeReview()" style="font-size:12px">Done</button>
+      </div>
+    </div>
+  `;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AUTO-SCROLL LOG
+// ═══════════════════════════════════════════════════════════════
+
+document.getElementById('logArea').addEventListener('scroll', function() {
+  autoScroll = this.scrollTop + this.clientHeight >= this.scrollHeight - 20;
+});
+
+// ═══════════════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════════════
+
+loadStages();
+loadStats();
+loadFiles();
+connectSSE();
+</script>
+</body>
+</html>

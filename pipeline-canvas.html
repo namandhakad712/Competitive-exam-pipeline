@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Pipeline Canvas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#08090e;
+  --canvas:#0c0d14;
+  --surface:rgba(20,22,32,.85);
+  --surface-hover:rgba(28,31,44,.95);
+  --border:rgba(48,52,74,.6);
+  --border-active:rgba(75,141,255,.5);
+  --text:#eef0f4;
+  --text-dim:#7a809c;
+  --text-muted:#525872;
+  --accent:#4b8dff;
+  --accent-glow:rgba(75,141,255,.15);
+  --green:#34d399;
+  --green-glow:rgba(52,211,153,.12);
+  --amber:#fbbf24;
+  --amber-glow:rgba(251,191,36,.12);
+  --red:#f87171;
+  --red-glow:rgba(248,113,113,.12);
+  --purple:#a78bfa;
+  --cyan:#22d3ee;
+  --radius:12px;
+  --radius-sm:8px;
+}
+
+html,body{height:100%;overflow:hidden}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);user-select:none}
+
+/* ── Grid background ── */
+.canvas-wrap{
+  position:fixed;inset:0;top:52px;
+  background:
+    linear-gradient(rgba(48,52,74,.08) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(48,52,74,.08) 1px,transparent 1px);
+  background-size:40px 40px;
+  overflow:hidden;cursor:grab
+}
+.canvas-wrap.grabbing{cursor:grabbing}
+.canvas-inner{position:relative;width:4000px;height:4000px;transform-origin:0 0;will-change:transform}
+
+/* ── Title bar ── */
+.title-bar{
+  position:fixed;top:0;left:0;right:0;z-index:200;
+  display:flex;align-items:center;gap:12px;
+  padding:0 20px;height:52px;
+  background:rgba(8,9,14,.92);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border)
+}
+.title-bar .brand{font-size:15px;font-weight:700;letter-spacing:-.03em;display:flex;align-items:center;gap:8px}
+.title-bar .brand .live{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 6px var(--green)}50%{opacity:.3;box-shadow:0 0 0 transparent}}
+.title-bar .spacer{flex:1}
+.title-bar .hint{font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:6px}
+.title-bar .hint span{opacity:.6}
+.title-bar .btn-reset{font-size:11px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text-dim);cursor:pointer;transition:.15s}
+.title-bar .btn-reset:hover{background:var(--surface-hover);border-color:var(--border-active);color:var(--text)}
+
+/* ── SVG edges ── */
+.edge-layer{position:absolute;inset:0;pointer-events:none;z-index:0}
+.edge-layer path{fill:none;stroke:var(--border);stroke-width:2;stroke-linecap:round;transition:stroke .3s,stroke-width .3s,stroke-dasharray .3s}
+.edge-layer path.done{stroke:var(--green);stroke-width:2.5;filter:drop-shadow(0 0 4px var(--green-glow))}
+.edge-layer path.running{stroke:var(--amber);stroke-width:3;stroke-dasharray:8 4;animation:dash 1s linear infinite}
+.edge-layer path.error{stroke:var(--red);stroke-width:2.5;stroke-dasharray:4 4;animation:dash .6s linear infinite}
+@keyframes dash{to{stroke-dashoffset:-12}}
+
+/* ── Nodes ── */
+.node{
+  position:absolute;z-index:1;
+  background:var(--surface);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  cursor:grab;
+  transition:border-color .25s,box-shadow .25s,transform .15s;
+  min-width:160px;
+  will-change:transform;
+  overflow:hidden
+}
+.node:hover{border-color:var(--border-active)}
+.node.dragging{transform:scale(1.03);z-index:99;cursor:grabbing;border-color:var(--accent);box-shadow:0 8px 40px rgba(0,0,0,.5),0 0 0 1px var(--accent-glow)}
+.node.selected{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent-glow)}
+.node.status-done{border-color:rgba(52,211,147,.3)}
+.node.status-done:hover{border-color:rgba(52,211,147,.5)}
+.node.status-running{border-color:rgba(251,191,36,.4);animation:nodeGlow 1.5s ease-in-out infinite alternate}
+@keyframes nodeGlow{from{box-shadow:0 0 8px var(--amber-glow)}to{box-shadow:0 0 20px var(--amber-glow)}}
+.node.status-error{border-color:rgba(248,113,113,.4)}
+
+/* Node header */
+.node-hd{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 14px 6px 14px;
+  position:relative
+}
+.node-hd::after{
+  content:'';position:absolute;bottom:0;left:12px;right:12px;
+  height:1px;background:var(--border);opacity:.4
+}
+.node-hd .ndot{
+  width:10px;height:10px;border-radius:50%;flex-shrink:0;
+  border:2px solid var(--border);background:transparent;
+  transition:.3s
+}
+.node-hd .ndot.done{background:var(--green);border-color:var(--green);box-shadow:0 0 8px var(--green-glow)}
+.node-hd .ndot.running{background:var(--amber);border-color:var(--amber);animation:pulse 1s infinite}
+.node-hd .ndot.error{background:var(--red);border-color:var(--red);box-shadow:0 0 8px var(--red-glow)}
+.node-hd .nnum{
+  width:20px;height:20px;border-radius:6px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:700;
+  background:var(--border);color:var(--text-dim);flex-shrink:0
+}
+.node-hd .nnum.done-num{background:var(--green-dim);color:var(--green)}
+.node-hd .nicon{font-size:15px;flex-shrink:0}
+.node-hd .nlabel{font-size:13px;font-weight:600;white-space:nowrap;margin-right:auto}
+.node-hd .nexpand{font-size:10px;color:var(--text-muted);cursor:pointer;padding:2px 6px;border-radius:4px;transition:.15s}
+.node-hd .nexpand:hover{background:var(--surface-hover);color:var(--text)}
+
+/* Node body (collapsible)*/
+.node-bd{max-height:0;overflow:hidden;transition:max-height .35s ease,opacity .35s;opacity:0}
+.node.expanded .node-bd{max-height:600px;opacity:1}
+.node-bd-inner{padding:8px 14px 12px 14px;display:flex;flex-direction:column;gap:3px}
+.node-bd-inner .nr{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-dim);line-height:1.5}
+.node-bd-inner .nr code{font-family:'JetBrains Mono',monospace;font-size:10px;background:var(--canvas);padding:2px 6px;border-radius:4px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+.node-bd-inner .nr em{font-style:normal;color:var(--text-muted);font-size:10px}
+.node-bd-inner .nr .tag{font-size:9px;font-weight:600;padding:1px 6px;border-radius:8px;text-transform:uppercase;letter-spacing:.03em;flex-shrink:0}
+.tag-g{background:rgba(52,211,147,.12);color:var(--green)}
+.tag-b{background:rgba(75,141,255,.12);color:var(--accent)}
+.tag-a{background:rgba(251,191,36,.12);color:var(--amber)}
+.tag-r{background:rgba(248,113,113,.12);color:var(--red)}
+
+/* Providers inside node */
+.providers{display:flex;flex-direction:column;gap:2px;margin-top:4px}
+.prow{
+  display:flex;align-items:center;gap:6px;
+  font-size:10px;padding:3px 8px;border-radius:6px;
+  background:var(--canvas);border:1px solid transparent;
+  transition:.15s
+}
+.prow:hover{border-color:var(--border)}
+.prow .pdot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.prow .pname{font-weight:500;margin-right:auto}
+.prow .prl{color:var(--text-muted);font-size:9px}
+.prow .pcheck{font-size:9px;font-weight:600}
+.prow .pcheck.ok{color:var(--green)}
+.prow .pcheck.no{color:var(--text-muted)}
+
+/* ── Port dots ── */
+.port{
+  position:absolute;width:12px;height:12px;border-radius:50%;
+  background:var(--canvas);border:2px solid var(--border);
+  z-index:2;pointer-events:none;
+  transition:border-color .3s,background .3s
+}
+.port.done{border-color:var(--green);background:var(--green);box-shadow:0 0 6px var(--green-glow)}
+.port.running{border-color:var(--amber);background:var(--amber);animation:pulse .8s infinite}
+.port.in{top:50%;left:-7px;transform:translateY(-50%)}
+.port.out{top:50%;right:-7px;transform:translateY(-50%)}
+
+/* ── Log panel ── */
+.log-overlay{
+  position:fixed;inset:0;z-index:150;
+  background:rgba(0,0,0,.4);
+  opacity:0;pointer-events:none;
+  transition:opacity .3s
+}
+.log-overlay.show{opacity:1;pointer-events:auto}
+
+.log-panel{
+  position:fixed;top:52px;right:0;bottom:0;z-index:151;
+  width:480px;max-width:90vw;
+  background:var(--surface);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border-left:1px solid var(--border);
+  transform:translateX(105%);transition:transform .35s cubic-bezier(.16,1,.3,1);
+  display:flex;flex-direction:column;
+  box-shadow:-8px 0 40px rgba(0,0,0,.4)
+}
+.log-panel.open{transform:translateX(0)}
+.log-panel .lp-head{
+  display:flex;align-items:center;gap:10px;
+  padding:16px 20px 12px 20px;
+  border-bottom:1px solid var(--border);
+  flex-shrink:0
+}
+.log-panel .lp-head .lp-icon{font-size:18px}
+.log-panel .lp-head .lp-title{font-size:15px;font-weight:700}
+.log-panel .lp-head .lp-status{font-size:11px;font-weight:500;padding:2px 10px;border-radius:12px;margin-left:auto}
+.lp-status.idle{background:var(--border);color:var(--text-muted)}
+.lp-status.running{background:var(--amber-glow);color:var(--amber)}
+.lp-status.done{background:var(--green-glow);color:var(--green)}
+.lp-status.error{background:var(--red-glow);color:var(--red)}
+.log-panel .lp-close{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:var(--canvas);color:var(--text-dim);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:.15s;flex-shrink:0}
+.log-panel .lp-close:hover{background:var(--surface-hover);color:var(--text)}
+.log-panel .lp-desc{padding:10px 20px;font-size:12px;color:var(--text-dim);border-bottom:1px solid var(--border);flex-shrink:0;line-height:1.5}
+.log-panel .lp-body{flex:1;overflow-y:auto;padding:12px 20px 20px 20px}
+.log-panel .lp-body::-webkit-scrollbar{width:4px}
+.log-panel .lp-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.log-panel .lp-body::-webkit-scrollbar-track{background:transparent}
+
+/* Log entries */
+.log-entry{
+  display:flex;gap:10px;padding:4px 0;
+  font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.6;
+  opacity:0;animation:logIn .3s forwards
+}
+@keyframes logIn{to{opacity:1}}
+.log-entry .ltime{color:var(--text-muted);flex-shrink:0;width:54px;font-size:10px}
+.log-entry .ltype{flex-shrink:0;width:46px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:1px 0}
+.log-entry .lmsg{color:var(--text-dim);word-break:break-word}
+.ltype.info{color:var(--accent)}
+.ltype.ok{color:var(--green)}
+.ltype.warn{color:var(--amber)}
+.ltype.err{color:var(--red)}
+.ltype.cmd{color:var(--purple)}
+.ltype.data{color:var(--cyan)}
+.log-entry.ok .lmsg{color:var(--text)}
+
+/* ── Bottom bar ── */
+.bottom-bar{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:100;
+  display:flex;align-items:center;gap:8px;
+  background:rgba(12,13,20,.88);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border:1px solid var(--border);border-radius:12px;
+  padding:6px 10px
+}
+.bottom-bar button{
+  width:30px;height:30px;border-radius:7px;
+  border:1px solid var(--border);background:var(--surface);
+  color:var(--text-dim);font-size:16px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:.15s
+}
+.bottom-bar button:hover{background:var(--surface-hover);border-color:var(--border-active);color:var(--text)}
+.bottom-bar .blabel{font-size:11px;color:var(--text-muted);min-width:38px;text-align:center}
+.bottom-bar .bsep{width:1px;height:20px;background:var(--border)}
+.bottom-bar .baction{
+  font-size:11px;padding:4px 12px;border-radius:6px;
+  border:1px solid var(--border);background:var(--surface);
+  color:var(--text-dim);cursor:pointer;transition:.15s
+}
+.bottom-bar .baction:hover{background:var(--surface-hover);border-color:var(--border-active);color:var(--text)}
+.bottom-bar .baction.prim{background:var(--accent);border-color:var(--accent);color:#fff}
+.bottom-bar .baction.prim:hover{filter:brightness(1.1)}
+
+/* ── Responsive ── */
+@media(max-width:700px){
+  .title-bar .hint{display:none}
+  .log-panel{width:100vw;max-width:100vw}
+  .node{min-width:130px}
+  .node-hd{padding:8px 10px 4px 10px}
+  .node-hd .nlabel{font-size:12px}
+  .node-bd-inner{padding:6px 10px 10px 10px}
+  .node-bd-inner .nr code{max-width:120px}
+  .bottom-bar button{width:26px;height:26px;font-size:14px}
+}
+</style>
+</head>
+<body>
+
+<div class="title-bar">
+  <div class="brand"><span class="live"></span> Pipeline Canvas</div>
+  <div class="spacer"></div>
+  <div class="hint">
+    <span>🖱</span> drag bg = pan · drag node = move · scroll = zoom
+    <span>·</span> <span>👆</span> click node = details + logs
+  </div>
+  <button class="btn-reset" onclick="resetLayout()">⟲ Reset layout</button>
+</div>
+
+<div class="canvas-wrap" id="canvasWrap">
+  <div class="canvas-inner" id="canvasInner">
+    <svg class="edge-layer" id="edgeLayer"></svg>
+  </div>
+</div>
+
+<!-- Log overlay -->
+<div class="log-overlay" id="logOverlay" onclick="closeLog()"></div>
+
+<!-- Log panel -->
+<div class="log-panel" id="logPanel">
+  <div class="lp-head">
+    <span class="lp-icon" id="lpIcon">⚡</span>
+    <span class="lp-title" id="lpTitle">Node</span>
+    <span class="lp-status idle" id="lpStatus">idle</span>
+    <button class="lp-close" onclick="closeLog()">✕</button>
+  </div>
+  <div class="lp-desc" id="lpDesc">Description</div>
+  <div class="lp-body" id="lpBody"></div>
+</div>
+
+<div class="bottom-bar">
+  <button onclick="zoomIn()">+</button>
+  <span class="blabel" id="zoomLabel">100%</span>
+  <button onclick="zoomOut()">−</button>
+  <span class="bsep"></span>
+  <button onclick="fitAll()" title="Fit all nodes">⊞</button>
+  <span class="bsep"></span>
+  <span class="baction prim" onclick="runDemo()">▶ Run Demo</span>
+  <span class="baction" onclick="resetStatus()">⟳ Reset</span>
+</div>
+
+<script>
+// ═════════════════════════════════════════════════════════════
+// DATA
+// ═════════════════════════════════════════════════════════════
+
+const DEF = {
+  nodes: [
+    { id:'trig', label:'Triggers', x:380, y:30, icon:'⚡', w:170, h:52, type:'trig',
+      desc:'How the pipeline starts — manual CLI or AI agent.',
+      rows:[
+        ['⌨️','npm run start ...','Manual'],
+        ['🤖','"Process this exam"','AI agent'],
+      ] },
+    { id:'s0', label:'Setup', x:60, y:160, icon:'🔧', w:170, h:48, num:0,
+      desc:'Environment prep: install deps, verify keys, compile.',
+      rows:[['📦','npm install','deps'],['🔑','Set .env keys','7 API keys'],['✅','npx tsc --noEmit','compile']] },
+    { id:'s1', label:'Scrape', x:280, y:160, icon:'📥', w:170, h:48, num:1,
+      desc:'Download exam PDF from NTA official site.',
+      rows:[['📄','data/{exam}/raw/*.pdf','output'],['🔄','gateoverflow fallback','mirror']] },
+    { id:'s2', label:'OCR', x:500, y:160, icon:'👁️', w:170, h:48, num:2,
+      desc:'Mistral OCR PDF → structured markdown.',
+      rows:[['📝','data/{exam}/ocr/*.json','output'],['🔪','Chunks >3.5MB','auto-split']] },
+    { id:'s3', label:'Structure', x:380, y:310, icon:'🧠', w:260, h:110, num:3,
+      desc:'AI extracts Question[] + Passage[] from OCR text. 6-provider fallback chain.',
+      rows:[['🤖','Provider chain','6 models'],['🛡️','Anti-hallucination','answer stripping']],
+      providers:[
+        {name:'NVIDIA Qwen3 Coder 480B',rl:'40 rpm · 262K ctx',ok:true},
+        {name:'LongCat Flash Lite',rl:'30 rpm · 256K out',ok:true},
+        {name:'Poolside Laguna M.1',rl:'30 rpm',ok:true},
+        {name:'Vanchin KAT-Coder',rl:'20 rpm',ok:true},
+        {name:'Gemini 2.5 Flash',rl:'5 rpm',ok:true},
+        {name:'Cerebras GPT-OSS-120B',rl:'5 rpm · last resort',ok:true},
+      ] },
+    { id:'s4', label:'Cache Diagrams', x:60, y:480, icon:'🖼️', w:170, h:48, num:4,
+      desc:'Extract embedded diagrams as PNG files.',
+      rows:[['📐','data/{exam}/diagrams/','output'],['🖼️','q{3digit}-fig{n}.png','per diagram']] },
+    { id:'s5', label:'Validate', x:290, y:480, icon:'🔍', w:170, h:48, num:5,
+      desc:'32 automatic integrity checks on extracted data.',
+      rows:[['📋','ID → subject → options','field checks'],['✅','{passed,failed,warnings}','report']] },
+    { id:'s6', label:'Finalize', x:520, y:480, icon:'📦', w:170, h:48, num:6,
+      desc:'Write final paper.json + per-subject split files.',
+      rows:[['📄','paper.json','schema v4'],['📂','physics.json, ...','subject split'],['📇','data/index.json','master index']] },
+    { id:'s7', label:'Human Review', x:130, y:640, icon:'👤', w:190, h:48, num:7,
+      desc:'AI agent presents each question for user approval.',
+      rows:[['⌨️','a/e/s/f keys','accept/edit/skip/flag'],['💾','.review-progress.json','auto-save']] },
+    { id:'s8', label:'Sign Off', x:380, y:640, icon:'✅', w:170, h:48, num:8,
+      desc:'Mark dataset as verified with metadata.',
+      rows:[['📝','metadata.json','review counts + timestamp']] },
+    { id:'s9', label:'Verify', x:580, y:640, icon:'🔐', w:170, h:48, num:9,
+      desc:'Final SHA-256 integrity + stats report.',
+      rows:[['🔎','npm run verify','checksums'],['📊','npm run stats','dataset stats']] },
+  ],
+  edges: [
+    { from:'trig', to:'s0' }, { from:'trig', to:'s1' }, { from:'trig', to:'s2' },
+    { from:'s0', to:'s3' }, { from:'s1', to:'s2' }, { from:'s2', to:'s3' },
+    { from:'s3', to:'s4' }, { from:'s3', to:'s5' }, { from:'s3', to:'s6' },
+    { from:'s4', to:'s7' }, { from:'s5', to:'s7' }, { from:'s6', to:'s7' },
+    { from:'s7', to:'s8' }, { from:'s8', to:'s9' },
+  ],
+  logs: {
+    trig:[
+      {t:0,ty:'info',m:'Waiting for trigger signal…'},
+      {t:300,ty:'cmd',m:'User runs: npm run start process --exam jeemain'},
+      {t:600,ty:'ok',m:'Pipeline initiated — 9 stages'},
+    ],
+    s0:[
+      {t:0,ty:'cmd',m:'npm install'},
+      {t:200,ty:'ok',m:'Dependencies installed (37 packages)'},
+      {t:400,ty:'cmd',m:'Set-LiteralPath .env — verifying keys…'},
+      {t:600,ty:'ok',m:'7 API keys present: NVIDIA/LongCat/Poolside/Vanchin/Gemini/Cerebras/Mistral'},
+      {t:800,ty:'cmd',m:'npx tsc --noEmit'},
+      {t:900,ty:'ok',m:'TypeScript compilation — 0 errors'},
+      {t:1000,ty:'ok',m:'Setup complete ✓'},
+    ],
+    s1:[
+      {t:0,ty:'cmd',m:'npm run scrape -- --exam jeemain --year 2025 --shifts 1'},
+      {t:500,ty:'info',m:'Fetching NTA exam list for jeemain 2025…'},
+      {t:1200,ty:'info',m:'Found 1 shift — downloading paper…'},
+      {t:2500,ty:'ok',m:'PDF saved: data/jeemain/raw/jeemain-2025-1.pdf (2.3 MB)'},
+    ],
+    s2:[
+      {t:0,ty:'cmd',m:'npx tsx src/extractors/ocr-stage.ts'},
+      {t:300,ty:'info',m:'Reading PDF: 12 pages, 2.3 MB'},
+      {t:600,ty:'info',m:'Chunking: file <= 3.5MB → no split needed'},
+      {t:1000,ty:'info',m:'Sending to Mistral OCR API…'},
+      {t:3200,ty:'ok',m:'OCR complete: 12 pages, 8472 tokens'},
+      {t:3500,ty:'info',m:'Decoding 4 embedded images from base64…'},
+      {t:3800,ty:'ok',m:'Output: data/jeemain/ocr/jeemain-2025-1.json'},
+    ],
+    s3:[
+      {t:0,ty:'cmd',m:'npx tsx src/extractors/structurer.ts'},
+      {t:200,ty:'info',m:'Reading OCR JSON — 12 pages, 8472 tokens'},
+      {t:400,ty:'info',m:'Scanning for answer key…'},
+      {t:600,ty:'ok',m:'Answer key detected at end of paper'},
+      {t:800,ty:'info',m:'▶ Trying #1 NVIDIA Qwen3 Coder 480B (40 rpm)…'},
+      {t:1800,ty:'ok',m:'NVIDIA responded — 89 questions extracted'},
+      {t:2000,ty:'data',m:'JSON parse: valid (no re-prompt needed)'},
+      {t:2200,ty:'info',m:'Anti-hallucination: answer key found → keeping answers'},
+      {t:2400,ty:'ok',m:'Structure complete: 89 questions, 3 passages'},
+    ],
+    s4:[
+      {t:0,ty:'cmd',m:'npx tsx src/extractors/diagram-cacher.ts'},
+      {t:300,ty:'info',m:'Processing 4 embedded diagrams…'},
+      {t:800,ty:'info',m:'Tier 1: using Mistral individual image coords (3/4)'},
+      {t:1500,ty:'warn',m:'Tier 2: sharp fallback for diagram 4 (coords missing)'},
+      {t:2200,ty:'ok',m:'4 diagrams cached: data/jeemain/diagrams/'},
+    ],
+    s5:[
+      {t:0,ty:'cmd',m:'npx tsx src/validators/auto-validator.ts'},
+      {t:400,ty:'info',m:'Running 32 validation checks…'},
+      {t:600,ty:'ok',m:'ID format: 89/89 ✓'},
+      {t:800,ty:'ok',m:'Subject validity: 89/89 ✓'},
+      {t:1000,ty:'ok',m:'Options uniqueness: 89/89 ✓'},
+      {t:1200,ty:'warn',m:'3 questions flagged: missing diagram references'},
+      {t:1400,ty:'ok',m:'Validation: 29 passed, 3 warnings, 0 failed'},
+    ],
+    s6:[
+      {t:0,ty:'cmd',m:'npx tsx src/finalizers/exporter.ts'},
+      {t:200,ty:'info',m:'Normalizing texts (LaTeX→Unicode)…'},
+      {t:600,ty:'info',m:'Normalizing topics → controlled vocabulary…'},
+      {t:1000,ty:'info',m:'Assigning IDs: jeemain-2025-1-phy-001…'},
+      {t:1400,ty:'info',m:'Computing SHA-256 checksum…'},
+      {t:1800,ty:'ok',m:'paper.json written (schema v4)'},
+      {t:2000,ty:'ok',m:'physics.json (30) + chemistry.json (30) + mathematics.json (29)'},
+      {t:2200,ty:'ok',m:'data/index.json updated'},
+    ],
+    s7:[
+      {t:0,ty:'info',m:'🔴 Agent: presenting questions for human review…'},
+      {t:500,ty:'cmd',m:'Q1: A block of mass 2kg… [a]'},
+      {t:800,ty:'ok',m:'User: accepted ✓'},
+      {t:1000,ty:'cmd',m:'Q2: The pH of 0.1M HCl… [e]'},
+      {t:1300,ty:'warn',m:'User: edited — corrected answer from 1.0 to 1.2'},
+      {t:1500,ty:'cmd',m:'Q3: The derivative of x²… [a]'},
+      {t:1800,ty:'ok',m:'User: accepted ✓'},
+      {t:3000,ty:'ok',m:'Review complete: 87 accepted, 2 edited, 0 flagged'},
+      {t:3200,ty:'data',m:'Progress saved to .review-progress.json'},
+    ],
+    s8:[
+      {t:0,ty:'cmd',m:'npm run signoff -- --status verified'},
+      {t:300,ty:'info',m:'Writing review metadata…'},
+      {t:600,ty:'data',m:'totalReviewed: 89, accepted: 87, edited: 2, skipped: 0'},
+      {t:900,ty:'ok',m:'metadata.json written ✓'},
+    ],
+    s9:[
+      {t:0,ty:'cmd',m:'npm run verify'},
+      {t:300,ty:'ok',m:'SHA-256: paper.json checksum valid ✓'},
+      {t:600,ty:'cmd',m:'npm run stats'},
+      {t:900,ty:'data',m:'Dataset: 89 questions | 3 subjects | 4 diagrams | 3 passages'},
+      {t:1200,ty:'ok',m:'Pipeline complete — all stages passed ✓'},
+    ],
+  }
+};
+
+// ═════════════════════════════════════════════════════════════
+// STATE
+// ═════════════════════════════════════════════════════════════
+
+let nodes = JSON.parse(JSON.stringify(DEF.nodes));
+let statuses = {};
+let logs = DEF.logs;
+
+// Load saved positions
+(function(){
+  try{
+    const d = localStorage.getItem('pipeline_node_positions');
+    if(d){const p=JSON.parse(d);nodes.forEach(n=>{if(p[n.id]){n.x=p[n.id].x;n.y=p[n.id].y}})}
+  }catch(e){}
+})();
+
+nodes.forEach(n => { statuses[n.id] = 'idle'; });
+
+// ═════════════════════════════════════════════════════════════
+// RENDER
+// ═════════════════════════════════════════════════════════════
+
+function render() {
+  const inner = document.getElementById('canvasInner');
+  const svg = document.getElementById('edgeLayer');
+  inner.querySelectorAll('.node').forEach(n => n.remove());
+
+  nodes.forEach(n => {
+    const el = document.createElement('div');
+    el.id = 'node-'+n.id;
+    el.className = 'node status-'+statuses[n.id];
+    if(n.type === 'trig') el.style.background = 'linear-gradient(135deg,rgba(26,31,46,.9),var(--surface))';
+    el.style.left = n.x+'px';
+    el.style.top = n.y+'px';
+    el.style.width = (n.w||170)+'px';
+
+    let h = `<div class="node-hd">
+      <span class="ndot ${statuses[n.id]==='done'?'done':statuses[n.id]==='running'?'running':statuses[n.id]==='error'?'error':''}"></span>
+      <span class="nnum ${statuses[n.id]==='done'?'done-num':''}">${n.num!==undefined?n.num:'•'}</span>
+      <span class="nicon">${n.icon}</span>
+      <span class="nlabel">${n.label}</span>
+      <span class="nexpand" onclick="event.stopPropagation();toggleExpand('${n.id}')">▸</span>
+    </div>
+    <div class="port in ${statuses[n.id]}"></div>
+    <div class="port out ${statuses[n.id]}"></div>
+    <div class="node-bd"><div class="node-bd-inner">`;
+
+    if (n.rows) n.rows.forEach(r => {
+      h += `<div class="nr"><span>${r[0]}</span><code>${r[1]}</code><em>${r[2]}</em></div>`;
+    });
+
+    if (n.providers) {
+      h += `<div class="nr" style="margin-top:4px"><span>🔁</span><span style="font-weight:500;color:var(--text)">Provider chain</span></div>
+      <div class="providers">`;
+      n.providers.forEach(p => {
+        h += `<div class="prow"><span class="pdot" style="background:${p.ok?'var(--green)':'var(--red)'}"></span>
+        <span class="pname">${p.name}</span><span class="prl">${p.rl}</span>
+        <span class="pcheck ${p.ok?'ok':'no'}">${p.ok?'✓':'✗'}</span></div>`;
+      });
+      h += `</div>`;
+    }
+
+    h += `</div></div>`;
+    el.innerHTML = h;
+    el.addEventListener('mousedown', e => onNodeMouseDown(e, n.id));
+    el.addEventListener('click', e => {
+      if (e.target.closest('.nexpand')) return;
+      openLog(n.id);
+    });
+    inner.appendChild(el);
+  });
+
+  renderEdges();
+}
+
+function renderEdges() {
+  const svg = document.getElementById('edgeLayer');
+  let html = '';
+  DEF.edges.forEach(e => {
+    const fn = nodes.find(n => n.id === e.from);
+    const tn = nodes.find(n => n.id === e.to);
+    if (!fn || !tn) return;
+    const fw = fn.w||170, tw = tn.w||170, fh = fn.h||48, th = tn.h||48;
+    const x1 = fn.x + fw/2, y1 = fn.y + fh;
+    const x2 = tn.x + tw/2, y2 = tn.y;
+    const cy = y1 + (y2-y1)/2;
+    const st = statuses[e.from]==='done'?'done':statuses[e.from]==='running'?'running':statuses[e.from]==='error'?'error':'';
+    html += `<path id="edge-${e.from}-${e.to}" class="${st}" d="M${x1},${y1} C${x1},${cy} ${x2},${cy} ${x2},${y2}"/>`;
+  });
+  svg.innerHTML = html;
+}
+
+// ═════════════════════════════════════════════════════════════
+// NODE DRAGGING
+// ═════════════════════════════════════════════════════════════
+
+let dragNodeId = null, dragOffX, dragOffY;
+
+function onNodeMouseDown(e, id) {
+  if (e.target.closest('.nexpand') || e.target.closest('.prow')) return;
+  e.stopPropagation();
+  dragNodeId = id;
+  const n = nodes.find(x => x.id === id);
+  dragOffX = e.clientX - n.x;
+  dragOffY = e.clientY - n.y;
+  document.getElementById('node-'+id).classList.add('dragging');
+}
+
+window.addEventListener('mousemove', e => {
+  if (!dragNodeId) return;
+  const n = nodes.find(x => x.id === dragNodeId);
+  n.x = Math.max(0, e.clientX - dragOffX);
+  n.y = Math.max(0, e.clientY - dragOffY);
+  const el = document.getElementById('node-'+dragNodeId);
+  el.style.left = n.x+'px';
+  el.style.top = n.y+'px';
+  renderEdges();
+});
+
+window.addEventListener('mouseup', () => {
+  if (dragNodeId) {
+    document.getElementById('node-'+dragNodeId)?.classList.remove('dragging');
+    savePositions();
+    dragNodeId = null;
+  }
+});
+
+function savePositions() {
+  const p = {};
+  nodes.forEach(n => { p[n.id] = {x:n.x, y:n.y}; });
+  try{localStorage.setItem('pipeline_node_positions', JSON.stringify(p));}catch(e){}
+}
+
+function resetLayout() {
+  nodes.forEach((n,i) => {
+    n.x = DEF.nodes[i].x;
+    n.y = DEF.nodes[i].y;
+  });
+  savePositions();
+  render();
+  fitAll();
+}
+
+// ═════════════════════════════════════════════════════════════
+// CANVAS PAN / ZOOM
+// ═════════════════════════════════════════════════════════════
+
+let scale = 1, ox = 0, oy = 0;
+let panning = false, psX, psY, poX, poY;
+const wrap = document.getElementById('canvasWrap');
+const inner = document.getElementById('canvasInner');
+
+function transform() {
+  inner.style.transform = `translate(${ox}px,${oy}px) scale(${scale})`;
+  document.getElementById('zoomLabel').textContent = Math.round(scale*100)+'%';
+}
+
+wrap.addEventListener('mousedown', e => {
+  if (e.target.closest('.node') || e.target.closest('.zoom-controls')) return;
+  panning = true; wrap.classList.add('grabbing');
+  psX = e.clientX; psY = e.clientY; poX = ox; poY = oy;
+});
+window.addEventListener('mousemove', e => {
+  if(!panning)return;
+  ox = poX + e.clientX - psX; oy = poY + e.clientY - psY; transform();
+});
+window.addEventListener('mouseup', () => { panning = false; wrap.classList.remove('grabbing'); });
+
+wrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  const d = e.deltaY > 0 ? .88 : 1/0.88;
+  const ns = Math.min(2.5, Math.max(0.15, scale*d));
+  const r = wrap.getBoundingClientRect();
+  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  ox = mx - (mx-ox)*(ns/scale); oy = my - (my-oy)*(ns/scale);
+  scale = ns; transform();
+}, { passive: false });
+
+function zoomIn() { const ns=Math.min(2.5,scale*1.3); ox=400-(400-ox)*(ns/scale); oy=300-(300-oy)*(ns/scale); scale=ns; transform(); }
+function zoomOut() { const ns=Math.max(0.15,scale/1.3); ox=400-(400-ox)*(ns/scale); oy=300-(300-oy)*(ns/scale); scale=ns; transform(); }
+function fitAll() {
+  let mx=Infinity,my=Infinity,Mx=-Infinity,My=-Infinity;
+  nodes.forEach(n=>{mx=Math.min(mx,n.x);my=Math.min(my,n.y);Mx=Math.max(Mx,n.x+(n.w||170));My=Math.max(My,n.y+(n.h||48)+20)});
+  const bw=wrap.clientWidth,bh=wrap.clientHeight,pad=60;
+  const sx=(bw-pad*2)/(Mx-mx), sy=(bh-pad*2)/(My-my);
+  scale=Math.min(1.5,Math.min(sx,sy));
+  ox=pad-mx*scale+(bw-(Mx-mx)*scale)/2-80; oy=pad-my*scale+(bh-(My-my)*scale)/2-40;
+  transform();
+}
+
+// ═════════════════════════════════════════════════════════════
+// EXPAND / LOG PANEL
+// ═════════════════════════════════════════════════════════════
+
+function toggleExpand(id) {
+  document.getElementById('node-'+id)?.classList.toggle('expanded');
+}
+
+function openLog(id) {
+  const n = nodes.find(x => x.id === id);
+  if (!n) return;
+  document.getElementById('lpIcon').textContent = n.icon;
+  document.getElementById('lpTitle').textContent = n.label;
+  const st = statuses[id] || 'idle';
+  const stEl = document.getElementById('lpStatus');
+  stEl.className = 'lp-status '+st;
+  stEl.textContent = st;
+  document.getElementById('lpDesc').textContent = n.desc;
+  const body = document.getElementById('lpBody');
+  body.innerHTML = '';
+  const ls = logs[id] || [];
+  ls.forEach((l, i) => {
+    const d = document.createElement('div');
+    d.className = 'log-entry' + (l.ty==='ok'?' ok':'');
+    const mm = l.m.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    d.innerHTML = `<span class="ltime">${l.t}ms</span><span class="ltype ${l.ty}">${l.ty}</span><span class="lmsg">${mm}</span>`;
+    d.style.animationDelay = (i*80)+'ms';
+    body.appendChild(d);
+  });
+  document.getElementById('logOverlay').classList.add('show');
+  document.getElementById('logPanel').classList.add('open');
+}
+
+function closeLog() {
+  document.getElementById('logOverlay').classList.remove('show');
+  document.getElementById('logPanel').classList.remove('open');
+}
+
+// ═════════════════════════════════════════════════════════════
+// DEMO
+// ═════════════════════════════════════════════════════════════
+
+let demoRunning = false;
+let demoTimer = null;
+
+function runDemo() {
+  if (demoRunning) return;
+  demoRunning = true;
+  resetStatus();
+  const seq = ['trig','s0','s1','s2','s3','s4','s5','s6','s7','s8','s9'];
+  let i = 0;
+  setStatus('trig','running');
+  if (demoTimer) clearInterval(demoTimer);
+  demoTimer = setInterval(() => {
+    if (i > 0) setStatus(seq[i-1], Math.random() > 0.08 ? 'done' : 'error');
+    if (i < seq.length) setStatus(seq[i], 'running');
+    i++;
+    if (i > seq.length) {
+      clearInterval(demoTimer);
+      demoTimer = null;
+      setStatus(seq[seq.length-1], 'done');
+      demoRunning = false;
+    }
+  }, 900);
+}
+
+function setStatus(id, st) {
+  statuses[id] = st;
+  const el = document.getElementById('node-'+id);
+  if (el) {
+    el.className = 'node status-'+st;
+    const dot = el.querySelector('.ndot');
+    if(dot) { dot.className='ndot'; dot.classList.add(st); }
+    const num = el.querySelector('.nnum');
+    if(num){num.classList.toggle('done-num',st==='done')}
+  }
+  renderEdges();
+  // auto-update log panel if open
+  const lpTitle = document.getElementById('lpTitle');
+  if (lpTitle && document.getElementById('logPanel').classList.contains('open')) {
+    const n = nodes.find(x => x.id === id);
+    if (n && document.getElementById('lpTitle').textContent === n.label) {
+      const stEl = document.getElementById('lpStatus');
+      stEl.className = 'lp-status '+st;
+      stEl.textContent = st;
+    }
+  }
+}
+
+function resetStatus() {
+  nodes.forEach(n => { setStatus(n.id, 'idle'); });
+  closeLog();
+  demoRunning = false;
+  if (demoTimer) { clearInterval(demoTimer); demoTimer = null; }
+}
+
+// ═════════════════════════════════════════════════════════════
+// RESIZE
+// ═════════════════════════════════════════════════════════════
+
+window.addEventListener('resize', () => {
+  // fitAll on orientation change for mobile
+});
+
+// ═════════════════════════════════════════════════════════════
+// BOOT
+// ═════════════════════════════════════════════════════════════
+
+render();
+setTimeout(fitAll, 100);
+</script>
+</body>
+</html>
