@@ -6,7 +6,6 @@ import type {
   EnhancedOcrResult,
   PageContent,
   MistralOcrPage,
-  MistralImage,
 } from "../types.js";
 
 const MISTRAL_API = "https://api.mistral.ai/v1/ocr";
@@ -38,88 +37,24 @@ function isBilingualPage(markdown: string): boolean {
 function callMistralOcr(
   pdfBase64: string,
   fileName: string,
-  structured?: boolean,
 ): Promise<MistralOcrResponse> {
   return rateLimiter.call(async () => {
     const maxRetries = 3;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      const body: Record<string, unknown> = {
-        model: "mistral-ocr-latest",
-        document: {
-          type: "document_url",
-          document_url: `data:application/pdf;base64,${pdfBase64}`,
-        },
-        include_image_base64: true,
-      };
-
-      if (structured) {
-        body.document_annotation_format = {
-          type: "json_schema",
-          json_schema: {
-            name: "exam_questions",
-            strict: true,
-            schema: {
-              type: "object",
-              properties: {
-                questions: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      number: { type: "integer" },
-                      text: { type: "string" },
-                      options: {
-                        type: "array",
-                        items: { type: "string" },
-                      },
-                      answer: { type: "string" },
-                      subject: { type: "string" },
-                      diagrams: {
-                        type: "array",
-                        items: { type: "string" },
-                      },
-                    },
-                    required: ["number", "text"],
-                  },
-                },
-              },
-            },
-          },
-        };
-        body.document_annotation_prompt =
-          "Extract all exam questions from this PDF. For each question, extract: number, text, options (array), answer (from answer key), subject (physics/chemistry/mathematics/biology)";
-        body.bbox_annotation_format = {
-          type: "json_schema",
-          json_schema: {
-            name: "diagram_regions",
-            schema: {
-              type: "object",
-              properties: {
-                diagrams: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      image_id: { type: "string" },
-                      question_number: { type: "integer" },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        };
-        body.image_min_size = 100;
-        body.confidence_scores_granularity = "word";
-      }
-
       const response = await fetch(MISTRAL_API, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${getApiKey()}`,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          model: "mistral-ocr-latest",
+          document: {
+            type: "document_url",
+            document_url: `data:application/pdf;base64,${pdfBase64}`,
+          },
+          include_image_base64: true,
+        }),
       });
 
       if (response.ok) {
@@ -130,6 +65,140 @@ function callMistralOcr(
         const wait = attempt * 10_000;
         logger.warn(
           `Mistral OCR rate limited (429), retrying in ${wait / 1000}s (attempt ${attempt}/${maxRetries})`,
+        );
+        await new Promise((r) => setTimeout(r, wait));
+        continue;
+      }
+
+      const bodyText = await response.text().catch(() => "");
+      throw new Error(
+        `Mistral OCR API ${response.status}: ${bodyText.slice(0, 200)}`,
+      );
+    }
+
+    throw new Error("Mistral OCR API rate limit exceeded after retries");
+  });
+}
+
+function callMistralOcrWithAnnotations(
+  pdfBase64: string,
+  fileName: string,
+): Promise<MistralOcrResponse> {
+  return rateLimiter.call(async () => {
+    const maxRetries = 3;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const response = await fetch(MISTRAL_API, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getApiKey()}`,
+        },
+        body: JSON.stringify({
+          model: "mistral-ocr-latest",
+          document: {
+            type: "document_url",
+            document_url: `data:application/pdf;base64,${pdfBase64}`,
+          },
+          include_image_base64: true,
+
+          // Document annotation: extract questions as structured JSON
+          document_annotation_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "exam_questions",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  questions: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        number: { type: "integer" },
+                        text: { type: "string" },
+                        options: {
+                          type: "array",
+                          items: { type: "string" },
+                        },
+                        answer: { type: "string" },
+                        subject: {
+                          type: "string",
+                          enum: [
+                            "physics",
+                            "chemistry",
+                            "mathematics",
+                            "biology",
+                          ],
+                        },
+                        has_diagram: { type: "boolean" },
+                        diagram_image_ids: {
+                          type: "array",
+                          items: { type: "string" },
+                        },
+                      },
+                      required: ["number", "text"],
+                    },
+                  },
+                  answer_key_found: { type: "boolean" },
+                  answer_key_section: { type: "string" },
+                },
+                required: ["questions"],
+              },
+            },
+          },
+          document_annotation_prompt:
+            "Extract all exam questions from this PDF. For each question extract the number, full text, options array, correct answer from any answer key present, and subject. If an answer key table or list is present, also set answer_key_found=true and include the answer_key_section text. Questions may have inline answer markers like [Ans: 2] or (Ans: 3) next to options.",
+
+          // BBox annotation: describe each extracted image (diagrams, figures, tables)
+          bbox_annotation_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "image_descriptions",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  images: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        image_id: { type: "string" },
+                        type: {
+                          type: "string",
+                          enum: [
+                            "diagram",
+                            "figure",
+                            "table",
+                            "answer_key",
+                            "icon",
+                            "other",
+                          ],
+                        },
+                        description: { type: "string" },
+                        relates_to_question: { type: "integer" },
+                        contains_answer_key: { type: "boolean" },
+                      },
+                      required: ["image_id", "type"],
+                    },
+                  },
+                },
+                required: ["images"],
+              },
+            },
+          },
+        }),
+      });
+
+      if (response.ok) {
+        return response.json() as Promise<MistralOcrResponse>;
+      }
+
+      if (response.status === 429 && attempt < maxRetries) {
+        const wait = attempt * 10_000;
+        logger.warn(
+          `Mistral OCR annotations rate limited (429), retrying in ${wait / 1000}s (attempt ${attempt}/${maxRetries})`,
         );
         await new Promise((r) => setTimeout(r, wait));
         continue;
@@ -202,8 +271,8 @@ export async function enhancedOcrPdf(
     `Enhanced OCR: PDF size ${(pdfBuffer.length / 1024 / 1024).toFixed(1)} MB`,
   );
 
-  // Call Mistral with structured annotations enabled
-  const result = await callMistralOcr(pdfBase64, fileName, true);
+  // Call Mistral with structured annotations + bbox annotations
+  const result = await callMistralOcrWithAnnotations(pdfBase64, fileName);
 
   const pages: PageContent[] = [];
   const images = new Map<number, string>();
@@ -222,34 +291,66 @@ export async function enhancedOcrPdf(
     }
   }
 
-  // Parse structured annotation if present
-  let structuredAnnotation = null;
+  // Parse document_annotation (structured questions)
+  let structuredAnnotation: unknown = null;
   if (result.document_annotation) {
     try {
       structuredAnnotation = JSON.parse(result.document_annotation);
-      logger.info(
-        `Enhanced OCR: structured annotation parsed successfully`,
-      );
-    } catch {
+      logger.info(`Enhanced OCR: document annotation parsed successfully`);
+    } catch (err) {
       logger.warn(
-        `Enhanced OCR: document_annotation present but not valid JSON`,
+        `Enhanced OCR: document_annotation present but not valid JSON: ${result.document_annotation.slice(0, 200)}`,
       );
     }
   }
 
-  // Parse bbox annotation if present
-  let bboxAnnotation = null;
+  // Parse bbox_annotation (diagram/image descriptions)
+  let bboxAnnotation: unknown = null;
   if (result.bbox_annotation) {
     try {
       bboxAnnotation = JSON.parse(result.bbox_annotation);
       logger.info(`Enhanced OCR: bbox annotation parsed successfully`);
-    } catch {
-      logger.warn(`Enhanced OCR: bbox_annotation present but not valid JSON`);
+    } catch (err) {
+      logger.warn(
+        `Enhanced OCR: bbox_annotation present but not valid JSON: ${result.bbox_annotation.slice(0, 200)}`,
+      );
+    }
+  }
+
+  // Check if Mistral detected an answer key via document_annotation
+  let answerKeyFoundFromAnnotation = false;
+  if (structuredAnnotation) {
+    const sa = structuredAnnotation as Record<string, unknown>;
+    if (sa.answer_key_found === true) {
+      answerKeyFoundFromAnnotation = true;
+      logger.info(
+        `Enhanced OCR: Mistral detected answer key in document annotation`,
+      );
+    }
+  }
+
+  // Check if Mistral detected answer key via bbox_annotation
+  let answerKeyFoundFromBbox = false;
+  if (bboxAnnotation) {
+    const ba = bboxAnnotation as Record<string, unknown>;
+    const images = ba.images as Array<Record<string, unknown>> | undefined;
+    if (images) {
+      const hasAnswerKey = images.some(
+        (img) => img.contains_answer_key === true || img.type === "answer_key",
+      );
+      if (hasAnswerKey) {
+        answerKeyFoundFromBbox = true;
+        logger.info(
+          `Enhanced OCR: Mistral detected answer key in bbox annotation`,
+        );
+      }
     }
   }
 
   logger.info(
-    `Enhanced OCR: ${pages.length} pages, ${images.size} images, structured=${!!structuredAnnotation}, bbox=${!!bboxAnnotation}`,
+    `Enhanced OCR: ${pages.length} pages, ${images.size} images, ` +
+      `doc_annotation=${!!structuredAnnotation}, bbox_annotation=${!!bboxAnnotation}, ` +
+      `answer_key_from_doc=${answerKeyFoundFromAnnotation}, answer_key_from_bbox=${answerKeyFoundFromBbox}`,
   );
 
   return {
@@ -258,5 +359,7 @@ export async function enhancedOcrPdf(
     mistralPages: result.pages,
     structuredAnnotation,
     bboxAnnotation,
+    answerKeyFoundFromAnnotation,
+    answerKeyFoundFromBbox,
   };
 }

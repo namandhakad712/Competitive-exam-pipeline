@@ -292,6 +292,8 @@ export interface EnhancedOcrResult {
   mistralPages: MistralOcrPage[];
   structuredAnnotation: unknown | null;
   bboxAnnotation: unknown | null;
+  answerKeyFoundFromAnnotation?: boolean;
+  answerKeyFoundFromBbox?: boolean;
 }
 
 export type ProviderName = "nvidia" | "longcat" | "poolside" | "vanchin" | "gemini" | "cerebras";

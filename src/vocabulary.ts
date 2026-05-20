@@ -330,9 +330,84 @@ export const codeToSubject: Record<string, Subject> = {
   bi: "biology",
 };
 
+export function isValidTag(subject: Subject, tag: string): boolean {
+  const t = tag.toLowerCase();
+  return subjectTags[subject]?.includes(t) ?? false;
+}
+
+export function getSubjectTags(subject: Subject): string[] {
+  return subjectTags[subject] ?? [];
+}
+
 // ---------------------------------------------------------------------------
-// FUZZY MATCHING
+// SEMANTIC TOPIC MATCHING (word vector cosine similarity)
 // ---------------------------------------------------------------------------
+
+/**
+ * Build a word frequency vector from a string.
+ * Splits on non-word characters, counts occurrences of each word.
+ */
+function wordVector(text: string): Map<string, number> {
+  const vec = new Map<string, number>();
+  const words = text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  for (const w of words) {
+    vec.set(w, (vec.get(w) || 0) + 1);
+  }
+  return vec;
+}
+
+/**
+ * Cosine similarity between two word frequency vectors.
+ * Returns a value between 0 (completely different) and 1 (identical).
+ */
+export function cosineSimilarity(a: string, b: string): number {
+  const vecA = wordVector(a);
+  const vecB = wordVector(b);
+
+  // Compute dot product and magnitudes
+  let dot = 0;
+  let magA = 0;
+  let magB = 0;
+
+  for (const [word, countA] of vecA) {
+    magA += countA * countA;
+    const countB = vecB.get(word) || 0;
+    dot += countA * countB;
+  }
+
+  for (const countB of vecB.values()) {
+    magB += countB * countB;
+  }
+
+  const magnitude = Math.sqrt(magA) * Math.sqrt(magB);
+  if (magnitude === 0) return 0;
+  return dot / magnitude;
+}
+
+/**
+ * Pre-computed canonical topic display names (hyphenated → natural language).
+ * Used for semantic matching against raw topic strings.
+ */
+function canonicalTopicName(topic: string): string {
+  return topic.replace(/[-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
+ * Build a map of canonical topic → display name for semantic matching.
+ */
+function buildCanonicalTopicMap(): Map<string, string> {
+  const seen = new Set<string>();
+  const map = new Map<string, string>();
+  for (const canonical of Object.values(topicAliases)) {
+    if (!seen.has(canonical)) {
+      seen.add(canonical);
+      map.set(canonical, canonicalTopicName(canonical));
+    }
+  }
+  return map;
+}
+
+const canonicalTopicDisplayNames = buildCanonicalTopicMap();
 
 /**
  * Levenshtein distance between two strings.
@@ -342,12 +417,8 @@ function levenshtein(a: string, b: string): number {
   const bn = b.length;
   const matrix: number[][] = [];
 
-  for (let i = 0; i <= an; i++) {
-    matrix[i] = [i];
-  }
-  for (let j = 0; j <= bn; j++) {
-    matrix[0][j] = j;
-  }
+  for (let i = 0; i <= an; i++) matrix[i] = [i];
+  for (let j = 0; j <= bn; j++) matrix[0][j] = j;
 
   for (let i = 1; i <= an; i++) {
     for (let j = 1; j <= bn; j++) {
@@ -359,7 +430,6 @@ function levenshtein(a: string, b: string): number {
       );
     }
   }
-
   return matrix[an][bn];
 }
 
@@ -367,7 +437,8 @@ function levenshtein(a: string, b: string): number {
  * Normalize a topic using:
  * 1. Exact match (fast path)
  * 2. Fuzzy match (Levenshtein distance <= 2)
- * 3. Fallback to raw string
+ * 3. Semantic similarity (cosine similarity on word vectors, threshold 0.3)
+ * 4. Fallback to raw string
  */
 export function normalizeTopic(raw: string): string {
   const key = raw.trim().toLowerCase();
@@ -383,15 +454,27 @@ export function normalizeTopic(raw: string): string {
     }
   }
 
-  // 3. Fallback
-  return key;
-}
+  // 3. Semantic similarity
+  let bestMatch = key;
+  let bestScore = 0.3; // threshold
 
-export function isValidTag(subject: Subject, tag: string): boolean {
-  const t = tag.toLowerCase();
-  return subjectTags[subject]?.includes(t) ?? false;
-}
+  for (const [canonical, displayName] of canonicalTopicDisplayNames) {
+    const score = cosineSimilarity(key, displayName);
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = canonical;
+    }
+  }
 
-export function getSubjectTags(subject: Subject): string[] {
-  return subjectTags[subject] ?? [];
+  // Also compare against all aliases
+  for (const [alias, canonical] of Object.entries(topicAliases)) {
+    const score = cosineSimilarity(key, alias);
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = canonical;
+    }
+  }
+
+  // 4. Fallback
+  return bestMatch;
 }

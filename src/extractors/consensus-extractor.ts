@@ -9,6 +9,7 @@ import type {
   ConsensusCandidate,
   Conflict,
   ConsensusResult,
+  Confidence,
 } from "../types.js";
 import { splitIntoChunks, chunkToMarkdown } from "./chunker.js";
 import { mergeChunks } from "./merger.js";
@@ -377,15 +378,9 @@ export function buildConsensus(
         PROVIDER_RANK[b.provider] - PROVIDER_RANK[a.provider],
     )[0].question!;
 
-    const consensusQ: PartialQuestion = {
-      ...bestCandidate,
-      text: textVote,
-      options: optionsVote ? JSON.parse(optionsVote) : bestCandidate.options,
-      answer: answerVote || bestCandidate.answer || "",
-      subject: subjectVote as PartialQuestion["subject"],
-    };
+    const totalProviders = relevant.length;
 
-    // Check for conflicts
+    // Compute agreement levels
     const textAgreement =
       textValues.filter((t) => normalizeStr(t) === normalizeStr(textVote))
         .length;
@@ -394,10 +389,37 @@ export function buildConsensus(
         ? answerValues.filter(
             (a) => normalizeStr(a) === normalizeStr(answerVote),
           ).length
-        : relevant.length;
+        : 0;
 
+    // Assign confidence based on agreement ratio
+    let confidence: Confidence = "low";
+    const textAgreeRatio = textAgreement / totalProviders;
+    const answerAgreeRatio =
+      answerValues.length > 0
+        ? answerAgreement / answerValues.length
+        : 1;
+    const avgAgreement = answerValues.length > 0
+      ? (textAgreeRatio + answerAgreeRatio) / 2
+      : textAgreeRatio;
+
+    if (avgAgreement >= 0.8 && totalProviders >= 2) {
+      confidence = "high";
+    } else if (avgAgreement >= 0.5) {
+      confidence = "medium";
+    }
+
+    const consensusQ: PartialQuestion = {
+      ...bestCandidate,
+      text: textVote,
+      options: optionsVote ? JSON.parse(optionsVote) : bestCandidate.options,
+      answer: answerVote || bestCandidate.answer || "",
+      subject: subjectVote as PartialQuestion["subject"],
+      confidence,
+    };
+
+    // Flag low-agreement conflicts
     if (
-      (textAgreement < 2 && relevant.length > 2) ||
+      (textAgreement < 2 && totalProviders > 2) ||
       (answerAgreement < 2 && answerValues.length > 2)
     ) {
       conflicts.push({
