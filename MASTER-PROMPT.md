@@ -36,6 +36,7 @@ Download Indian exam PDFs from the web, read every page visually, extract every 
     "b": { "label": "Section B", "total": 30, "required": 10, "mandatory": false }
   },
   "scrapedAt": "2026-05-19T12:00:00.000Z",
+  "answerKeyFound": true,
   "questions": [
     {
       "id": "jeemain-2025-22jan-s1-ph-001",
@@ -137,6 +138,17 @@ Use web search to find the exam paper PDF. Download it. Read it visually page by
 
 ### Step 2: Read Every Page Visually
 
+**CRITICAL — Answer key detection first:**
+Before extracting questions, scan the ENTIRE PDF for an answer key. Look for:
+- "Answer Key", "ANSWER KEY", "Answer key" heading
+- "Ans:", "Ans :", "Answer:" columns
+- Numbered list at the very end of the PDF matching question numbers
+- A table with question numbers and answer letters/numbers
+
+If NO answer key is found, you MUST set `answer: ""` (empty string) for ALL questions. Do NOT invent, guess, or derive answers yourself. Wrong answers are worse than missing answers — they silently poison the dataset.
+
+If an answer key IS found, read it carefully and match each answer to the correct question number. Note that answer keys often have multi-digit numbers that may wrap across lines.
+
 Go through EVERY page of the PDF:
 - Read all questions
 - Read ALL text including the answer key (usually at the end)
@@ -152,7 +164,7 @@ Go through EVERY page of the PDF:
 
 ### Step 3: Extract to JSON
 
-Use your best text-to-text AI model (NVIDIA NIM 40 RPM, LongCat 50M tokens, Cerebras, Gemini — whichever you have access to) to parse the raw text into structured JSON. Send the full OCR text with a system prompt containing the schema below.
+Use your best text-to-text AI model (NVIDIA NIM 40 RPM, Poolside, Vanchin KAT-Coder, LongCat 50M tokens, Cerebras, Gemini — whichever you have API access to) to parse the raw text into structured JSON. Send the full OCR text with a system prompt containing the schema below.
 
 | Field | How to determine |
 |---|---|
@@ -197,6 +209,18 @@ Use these topic names. If a question doesn't match any, use "general-{subject}".
 
 ### Biology topics (NEET only)
 - diversity-living-world, structural-organization-plants, structural-organization-animals, cell-unit-life, cell-cycle, plant-physiology, photosynthesis, respiration-plants, plant-growth, human-physiology, digestion, breathing, body-fluids, excretion, locomotion, neural-control, chemical-coordination, reproduction-organisms, sexual-reproduction-flowering-plants, human-reproduction, reproductive-health, principles-inheritance, molecular-basis-inheritance, evolution, health-disease, food-production, biotechnology, organisms-populations, ecosystem, biodiversity, environmental-issues, general-biology
+
+---
+
+## CRITICAL: ANTI-HALLUCINATION RULE
+
+**NEVER invent an answer.** If the PDF has no answer key, every `answer` field must be `""` (empty string). A question with a wrong answer is WORSE than a question with no answer — it poisons the entire dataset. Human reviewers need to see empty answers so they know to fill them in.
+
+- No answer key → ALL answers = ""
+- Partial answer key (e.g. only odd numbers) → fill known ones, leave others ""
+- Unclear/misaligned answer key → set all to "" and flag for user
+
+This is not optional. It is the most important rule in this document.
 
 ---
 
@@ -273,6 +297,8 @@ Before saving any file, verify:
 - [ ] Subject counts sum to total
 - [ ] All text is properly encoded (no garbled Unicode)
 - [ ] Answers are consistent with answer key
+- [ ] All answers are empty string if answerKeyFound=false
+- [ ] **FATAL CHECK: If no answer key was found, ALL answers must be empty string. If any question has a non-empty answer despite no key, delete every answer immediately.**
 
 ---
 
@@ -456,6 +482,7 @@ Each subject file contains ALL questions for that subject with number reset to 1
       "shift": "22jan-shift1",
       "subjects": ["physics", "chemistry", "mathematics"],
       "total": 90,
+      "answerKeyFound": true,
       "verified": false,
       "checksum": "sha256hex..."
     }

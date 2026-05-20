@@ -135,6 +135,7 @@ export async function importKaggleDataset(
       marksUnanswered: 0,
       sections: { a: { label: "section a", total: questions.length, required: questions.length, mandatory: true } },
       scrapedAt: new Date().toISOString(),
+      answerKeyFound: true,
       checksum: "",
       questions,
       passages: [],

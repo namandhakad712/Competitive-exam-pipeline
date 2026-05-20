@@ -28,6 +28,7 @@ interface ExportInput {
   marksIncorrect: number;
   marksUnanswered: number;
   sections: Record<string, SectionConfig>;
+  answerKeyFound: boolean;
   questions: PartialQuestion[];
   passages: Passage[];
   sourceDir?: string;
@@ -109,6 +110,7 @@ export async function exportDataset(input: ExportInput, revision = 1): Promise<Q
     marksUnanswered,
     sections,
     scrapedAt: new Date().toISOString(),
+    answerKeyFound: input.answerKeyFound,
     checksum: "",
     questions: fullQuestions,
     passages,

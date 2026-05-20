@@ -111,6 +111,7 @@ export interface QuestionFile {
   marksUnanswered: number;
   sections: Record<string, SectionConfig>;
   scrapedAt: string;
+  answerKeyFound: boolean;
   checksum: string;
   questions: Question[];
   passages: Passage[];

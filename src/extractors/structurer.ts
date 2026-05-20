@@ -32,6 +32,7 @@ interface ExtractionResult {
   questions: PartialQuestion[];
   passages: Passage[];
   rawResponse: string;
+  answerKeyFound: boolean;
 }
 
 // ---- Providers in priority order ----
@@ -42,11 +43,46 @@ interface Provider {
   supportsLarge: boolean;
 }
 
+// ---- Answer key detection ----
+const ANSWER_KEY_PATTERNS = [
+  /answer\s*key/i,
+  /answer\s*:/i,
+  /ans\s*\.?\s*:/i,
+  /correct\s*answer/i,
+  /question\s*no/i,
+  /q\.?\s*no/i,
+  /answer\s*table/i,
+  /key\s*to\s*questions/i,
+  /solution\s*key/i,
+];
+
+function hasAnswerKey(text: string): boolean {
+  for (const pattern of ANSWER_KEY_PATTERNS) {
+    if (pattern.test(text)) return true;
+  }
+  return false;
+}
+
+function stripAllAnswers(questions: PartialQuestion[]): PartialQuestion[] {
+  return questions.map(q => ({
+    ...q,
+    answer: "",
+    answers: null,
+    answerPrecision: null,
+  }));
+}
+
 // ---- System prompt ----
-function buildSystemPrompt(exam: Exam): string {
+function buildSystemPrompt(exam: Exam, answerKeyDetected: boolean): string {
+  const answerKeyInstruction = answerKeyDetected
+    ? "An answer key IS present at the end of this paper. Use it to fill in the answer field for every question. Match answers to question numbers carefully."
+    : "CRITICAL: NO answer key was found in this paper. Set answer to empty string for ALL questions. Do NOT invent or guess any answers. Wrong answers are worse than missing answers.";
+
   return `You are an expert exam paper parser. Your job is to extract ALL questions from the given exam paper with 100% accuracy.
 
 Exam: ${exam}
+
+${answerKeyInstruction}
 
 Rules:
 1. Extract EVERY question on the paper. Do not skip any.
@@ -60,7 +96,7 @@ Rules:
    - text: full question text
    - textHi: Hindi translation if present in the PDF, otherwise null
    - options: array of option strings. null for nat and assertion-reason types
-   - answer: the correct answer index as a string for mcq/assertion-reason, or the numeric value for nat. If unknown, set to null
+   - answer: set based on answer key (see above). If NO answer key found, ALWAYS set to empty string ""
    - answers: array of correct indices for msq, null otherwise
    - answerPrecision: for NAT with range, object with {type, min, max, unit}. Null otherwise
    - marks: marks for this question (usually 4)
@@ -71,11 +107,12 @@ Rules:
    - tags: array of topic-related tags
    - source: "official-pdf"
 
-3. Answer keys are at the END of the paper. Use them to fill in the answer field.
-4. If a block of text appears before multiple questions without diagrams, it's likely a passage.
-5. For assertion-reason questions: set options to null. Answer is 0-3 index.
-6. For numerical (NAT) questions: set options to null, negativeMarks to 0.
-7. Output a valid JSON object with two keys: "questions" (array) and "passages" (array).
+3. Answer keys are at the END of the paper. Read to the last page before filling answers.
+4. NEVER invent or guess an answer. If you are unsure, set answer to "".
+5. If a block of text appears before multiple questions without diagrams, it's likely a passage.
+6. For assertion-reason questions: set options to null.
+7. For numerical (NAT) questions: set options to null, negativeMarks to 0.
+8. Output a valid JSON object with two keys: "questions" (array) and "passages" (array).
 
 Respond ONLY with the JSON. No explanation, no markdown formatting.`;
 }
@@ -92,7 +129,7 @@ function buildUserPrompt(pages: PageContent[]): string {
   return text;
 }
 
-function parseExtractionResponse(raw: string): ExtractionResult {
+function parseExtractionResponse(raw: string, answerKeyDetected: boolean): ExtractionResult {
   let cleaned = raw.trim();
   if (cleaned.startsWith("```")) {
     cleaned = cleaned.replace(/```(?:json)?\n?/g, "").trim();
@@ -109,7 +146,17 @@ function parseExtractionResponse(raw: string): ExtractionResult {
     ? parsed.passages
     : [];
 
-  return { questions, passages, rawResponse: raw };
+  // Safety: if no answer key was detected, strip ALL answers the AI may have hallucinated
+  const safeQuestions = answerKeyDetected ? questions : stripAllAnswers(questions);
+
+  if (!answerKeyDetected && questions.length > 0) {
+    const hadAnswers = questions.some(q => q.answer && q.answer !== "");
+    if (hadAnswers) {
+      logger.warn(`Answer key NOT found in PDF. Stripped ${questions.filter(q => q.answer && q.answer !== "").length} hallucinated answers.`);
+    }
+  }
+
+  return { questions: safeQuestions, passages, rawResponse: raw, answerKeyFound: answerKeyDetected };
 }
 
 // ===================== Provider implementations =====================
@@ -309,9 +356,16 @@ export async function extractQuestions(
   pages: PageContent[],
   exam: Exam,
 ): Promise<ExtractionResult> {
-  const systemPrompt = buildSystemPrompt(exam);
   const userPrompt = buildUserPrompt(pages);
+  const answerKeyDetected = hasAnswerKey(userPrompt);
+  const systemPrompt = buildSystemPrompt(exam, answerKeyDetected);
   const isLarge = pages.length > MAX_PAGES_CEREBRAS;
+
+  if (!answerKeyDetected) {
+    logger.warn("No answer key detected in PDF. All answers will be set to empty.");
+  } else {
+    logger.info("Answer key detected. Answers will be extracted from PDF.");
+  }
 
   const providers: Provider[] = [
     {
@@ -362,7 +416,7 @@ export async function extractQuestions(
     logger.info(`Structure: using ${provider.name} (${pages.length} pages)`);
     try {
       const raw = await provider.call(userPrompt, systemPrompt);
-      return parseExtractionResponse(raw);
+      return parseExtractionResponse(raw, answerKeyDetected);
     } catch (err) {
       logger.warn(`${provider.name} failed: ${err instanceof Error ? err.message : String(err)}`);
       continue;

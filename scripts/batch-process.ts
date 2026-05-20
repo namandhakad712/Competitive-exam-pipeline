@@ -128,6 +128,7 @@ export async function batchProcess(config: BatchConfig): Promise<boolean> {
       sections: mergedConfig.sections ?? {},
       questions: extraction.questions as PartialQuestion[],
       passages: extraction.passages as Passage[],
+      answerKeyFound: extraction.answerKeyFound,
     });
 
     const { paperPath, subjectPaths } = await writeDataset(file, DATA_DIR);

@@ -73,7 +73,9 @@ C:\QUESTION-PIPELINE\
 
       structurer.ts        Priority: NVIDIA (40 RPM) > Cerebras (5 RPM, <=12pgs) > Gemini (5 RPM) > LongCat (50M tokens).
                            System prompt = JSON schema for Question[].
-                           Time-travel backfill: answer key on last page → match by number.
+                            Time-travel backfill: answer key on last page → match by number.
+                            ANTI-HALLUCINATION: scans raw text for answer key patterns BEFORE sending to AI.
+                            If no key detected: sets ALL answers to "" and warns user.
                            In: markdown string. Out: Question[] + Passage[]
                            Error: JSON parse failure → re-prompt with stricter instructions
 

@@ -12,7 +12,7 @@ interface ExportConfig {
   output?: string;
 }
 
-const INTERNAL_FIELDS = ["revision", "source", "scrapedAt", "checksum", "passages", "passageId"] as const;
+const INTERNAL_FIELDS = ["revision", "source", "scrapedAt", "checksum", "answerKeyFound", "passages", "passageId"] as const;
 
 function stripInternalFields(q: Record<string, unknown>): Record<string, unknown> {
   const cleaned = { ...q };

@@ -166,8 +166,11 @@ function validateQuestion(q: Question, index: number, ctx: ValidatorContext): Va
     flags.push(flag("confidence", "official-pdf questions should have confidence=null", "info"));
   }
   if (q.source === "imported-kaggle" && q.confidence === null) {
-    flags.push(flag("confidence", "imported-kaggle should have a confidence level", "info"));
+    flags.push(flag("confidence", "Imported dataset should have confidence set", "warning"));
   }
+
+  // 26. Answer hallucination check — if answerKeyFound=false and answer is not empty
+  // This is checked at the file level in validateFile()
 
   // 20. Revision positive
   if (typeof q.revision !== "number" || q.revision < 1) {
@@ -293,6 +296,19 @@ export function validateQuestionFile(file: QuestionFile, dataDir?: string): Vali
   }
   for (const [subj, count] of Object.entries(subjectCounts)) {
     logger.debug(`Subject ${subj}: ${count} questions`);
+  }
+
+  // 33. Answer hallucination check
+  if (!file.answerKeyFound) {
+    const answered = file.questions.filter(q => q.answer && q.answer !== "");
+    if (answered.length > 0) {
+      logger.warn(`Answer key not found but ${answered.length} questions have answers — possible hallucination`);
+      for (const aq of answered) {
+        const result = results[file.questions.indexOf(aq)];
+        result.flags.push(flag("answer", `No answer key in PDF but answer="${aq.answer}" — might be hallucinated`, "error"));
+        result.valid = false;
+      }
+    }
   }
 
   return results;
