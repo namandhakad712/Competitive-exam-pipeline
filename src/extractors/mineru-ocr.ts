@@ -368,12 +368,14 @@ async function callMineruPrecisionOcr(filePath: string, token: string, options: 
     : buildPagesFromMarkdown(fullMd);
 
   const pageImages = new Map<number, string>();
+  let imgSeq = 0;
   for (const item of contentList) {
     if (item.type === "image" && item.img_path) {
       const imgFileName = item.img_path.replace("images/", "").replace(/^.*[/\\]/, "");
       const b64 = imagesByName.get(imgFileName);
       if (b64) {
-        pageImages.set(item.page_idx + 1, b64);
+        imgSeq++;
+        pageImages.set(imgSeq, b64);
       }
     }
   }

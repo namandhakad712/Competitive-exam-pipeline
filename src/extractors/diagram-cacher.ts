@@ -329,6 +329,8 @@ async function cacheDiagramsLegacy(
   shiftDir: string,
 ): Promise<void> {
   let totalSaved = 0;
+  const imageKeys = Array.from(images.keys()).sort((a, b) => a - b);
+  let imgIdx = 0;
 
   for (const q of questions) {
     if (!q.hasDiagram || !q.number) continue;
@@ -340,43 +342,16 @@ async function cacheDiagramsLegacy(
     const diagramList: Diagram[] = [];
     let figIndex = 1;
 
-    // Check if question text references images
-    const imageRefs = extractImageRefs(q.text);
-    if (imageRefs.length > 0) {
-      for (const ref of imageRefs) {
-        // We don't have Mistral page data, use first available image
-        if (images.size > 0) {
-          const pageNum = Array.from(images.keys())[0];
-          const pageImageBase64 = images.get(pageNum)!;
-          const fileName = `q${padNum(q.number)}-fig${figIndex}.png`;
-          const filePath = join(diagDir, fileName);
+    // Use next available image in document order
+    while (imgIdx < imageKeys.length) {
+      const key = imageKeys[imgIdx];
+      const b64 = images.get(key)!;
 
-          try {
-            const buffer = decodeBase64Image(pageImageBase64);
-            await writeFile(filePath, buffer);
-            diagramList.push({
-              file: `diagrams/${subjectDir}/${fileName}`,
-              label: ref.label || `fig. ${figIndex}`,
-              caption: null,
-            });
-            figIndex++;
-            totalSaved++;
-          } catch (err) {
-            logger.warn(
-              `Diagram: failed to write ${fileName}: ${err instanceof Error ? err.message : String(err)}`,
-            );
-          }
-        }
-      }
-    } else if (images.size > 0) {
-      // Legacy fallback: save first page image
-      const firstPage = Array.from(images.keys())[0];
-      const pageImageBase64 = images.get(firstPage)!;
       const fileName = `q${padNum(q.number)}-fig${figIndex}.png`;
       const filePath = join(diagDir, fileName);
 
       try {
-        const buffer = decodeBase64Image(pageImageBase64);
+        const buffer = decodeBase64Image(b64);
         await writeFile(filePath, buffer);
         diagramList.push({
           file: `diagrams/${subjectDir}/${fileName}`,
@@ -384,15 +359,22 @@ async function cacheDiagramsLegacy(
           caption: null,
         });
         figIndex++;
+        imgIdx++;
         totalSaved++;
       } catch (err) {
         logger.warn(
           `Diagram: failed to write ${fileName}: ${err instanceof Error ? err.message : String(err)}`,
         );
+        imgIdx++;
       }
-    } else {
+
+      // One image per question (not all images for one question)
+      break;
+    }
+
+    if (diagramList.length === 0) {
       logger.warn(
-        `Diagram: question ${q.number} hasDiagram=true but no images available`,
+        `Diagram: question ${q.number} hasDiagram=true but no more images available`,
       );
     }
 
