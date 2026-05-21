@@ -454,11 +454,45 @@ async function testAiProviders(): Promise<void> {
   readlineSync.keyInPause(s("  Press any key to continue...", DIM));
 }
 
+/* ─── PDF SORT ────────────────────────────────────────────── */
+
+type SortField = "name" | "size";
+type SortDir = "asc" | "desc";
+
+interface SortState {
+  field: SortField;
+  dir: SortDir;
+}
+
+const SORT_LABELS: Record<SortField, string> = { name: "Name", size: "Size" };
+
+function cycleSort(s: SortState): SortState {
+  const order: Array<{ field: SortField; dir: SortDir }> = [
+    { field: "name", dir: "asc" },
+    { field: "name", dir: "desc" },
+    { field: "size", dir: "desc" },
+    { field: "size", dir: "asc" },
+  ];
+  const idx = order.findIndex((o) => o.field === s.field && o.dir === s.dir);
+  return order[(idx + 1) % order.length];
+}
+
+function sortFiles(files: PdfInfo[], sort: SortState): PdfInfo[] {
+  const copy = [...files];
+  const mul = sort.dir === "asc" ? 1 : -1;
+  copy.sort((a, b) => {
+    if (sort.field === "name") return mul * a.name.localeCompare(b.name);
+    return mul * (a.sizeKB - b.sizeKB);
+  });
+  return copy;
+}
+
 /* ─── PDF SELECTOR ────────────────────────────────────────── */
 
 async function selectPdfFile(): Promise<{ path: string; force: boolean }> {
   let pdfPath = "";
   let forceFlag = false;
+  let sortState: SortState = { field: "name", dir: "asc" };
 
   /* Pre-read checkpoints for processed column */
   let cpData: Record<string, unknown> = {};
@@ -472,7 +506,7 @@ async function selectPdfFile(): Promise<{ path: string; force: boolean }> {
     console.log(s("  PDF File Selection", BOLD, WHITE));
     divider();
     console.log();
-    const files = getPdfFiles();
+    const files = sortFiles(getPdfFiles(), sortState);
     if (files.length === 0) {
       console.log(`  ${s("No PDFs found in input/ directory.", YELLOW)}`);
       console.log();
@@ -504,8 +538,10 @@ async function selectPdfFile(): Promise<{ path: string; force: boolean }> {
         return { ...f, processed, stages, typeLabel };
       });
 
-      /* Header */
-      console.log(`  ${s("PDF", DIM).padStart(5)} ${s("Status", DIM)}  ${s("Type", DIM).padEnd(14)}  ${s("File", DIM).padEnd(42)} ${s("Size", DIM)}`);
+      /* Header with sort indicator */
+      const sortArrow = sortState.dir === "asc" ? "\u2191" : "\u2193";
+      const sortLabel = `${SORT_LABELS[sortState.field]} ${sortArrow}`;
+      console.log(`  ${s("PDF", DIM).padStart(5)} ${s("Status", DIM)}  ${s("Type", DIM).padEnd(14)}  ${s("File", DIM).padEnd(42)} ${s(`Size [${sortLabel}]`, DIM)}`);
       console.log(`  ${s("\u2500".repeat(5), DIM)} ${s("\u2500".repeat(6), DIM)}  ${s("\u2500".repeat(14), DIM)}  ${s("\u2500".repeat(42), DIM)} ${s("\u2500".repeat(8), DIM)}`);
 
       const rows = fileInfos.map((f, i) => {
@@ -519,10 +555,10 @@ async function selectPdfFile(): Promise<{ path: string; force: boolean }> {
       rows.push(`  ${s("M", CYAN)} ${s(" \u25CB", DIM)}  ${s("Manual", DIM).padEnd(14)} ${s("Manual path entry", DIM).padEnd(42)}`);
       rows.forEach((item) => console.log(item));
       console.log();
-      console.log(`  ${s("?", CYAN)}  ${s("Help  (commands, features, env vars, about)", DIM)}`);
-      console.log();
-      const raw = readlineSync.question(s("  Select [1-" + files.length + "], M or ?: ", BOLD));
+      console.log(`  ${s("?", CYAN)}  ${s("Help", DIM)}  ${s("S", CYAN)}  ${s("Sort toggle", DIM)}  ${s(`[1-${files.length}], M, ? or S:`, BOLD)}`);
+      const raw = readlineSync.question(s(`  Select [1-${files.length}], M, ? or S: `, BOLD));
       if (raw === "?") { showHelp(); continue; }
+      if (raw.toUpperCase() === "S") { sortState = cycleSort(sortState); continue; }
       const num = parseInt(raw, 10);
       if (num >= 1 && num <= files.length) {
         pdfPath = files[num - 1].path;

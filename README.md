@@ -22,7 +22,7 @@
 ╚═╝░░░░░╚═╝╚═╝░░░░░╚══════╝╚══════╝╚═╝╚═╝░░╚══╝╚══════╝
 
 ```
-
+<img width="805" height="643" alt="image" src="https://github.com/user-attachments/assets/7bb57251-6673-437c-a6f2-0373e70cef81" />
 > **Batch pipeline for exam question extraction and JSON dataset generation**  
  
 > Automatically downloads PDFs, performs OCR, extracts questions via multi-AI consensus, validates, and exports structured datasets.
