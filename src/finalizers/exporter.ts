@@ -114,8 +114,8 @@ export async function exportDataset(input: ExportInput, revision = 1): Promise<Q
     answerKeyFound: input.answerKeyFound,
     checksum: "",
     provenance: {
-      author: "Naman Dhakad",
-      repo: "https://github.com/namandhakad712/Jee-Neet-PYQ",
+      author: "",
+      repo: "",
       license: "PolyForm-Noncommercial-1.0.0",
       pipelineVersion: "1.0.0",
       generatedAt: now,

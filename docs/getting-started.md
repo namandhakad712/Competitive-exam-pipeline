@@ -280,5 +280,5 @@ npm run process-pdf -- --input input/neet-2025-04may-s1.pdf --use-consensus
 - Check `QUICK-FIX.md` for network error solutions
 - Check `STATUS.md` for detailed implementation status
 - Check `PLAN.md` for full pipeline design
-- Check `prompts/AGENT.md` for technical details
+- Check `AGENT.md` for technical details
 - Run `npm test` to verify everything works

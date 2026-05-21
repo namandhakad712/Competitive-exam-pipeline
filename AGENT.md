@@ -45,8 +45,8 @@ Then ask: *"Which exam and shift? e.g. jeemain 2025 22jan-shift1"*
 
 ```
 C:\QUESTION-PIPELINE\
+  AGENT.md              THIS FILE
   prompts/
-    AGENT.md              THIS FILE
     MASTER-PROMPT.md      Self-contained prompt
     AI-START-COMMAND.md   Session start instructions
   docs/
@@ -259,14 +259,7 @@ C:\QUESTION-PIPELINE\
                             Returns: { totalFiles, passed, failed, missing }
                             Verify every time before accepting a dataset as clean.
 
-    adapters/
-      rankify-adapter.ts   Converts canonical Question → Rankify TestSessionQuestionData.
-                           30 lines. Zero changes to Rankify schema.
-                           Functions:
-                             adaptQuestion(q) → RankifyQuestionData
-                             adaptPaper(questions, passages, sessionId?) → RankifyPaperData
-                             setPassageCache(passages) — prepends passage text when passageId set
-                           AR options auto-generated: 4 standard strings.
+
 ```
 
 ---
@@ -573,7 +566,7 @@ npx tsx src/cross-validate/cross-validator.ts --a extracted-cerebras.json --b ex
    If `textHi` is null, that's fine — some NEET papers are English-only.
 3. **Kaggle import datasets** — confidence=low. These need human review even more than AI-extracted.
 4. **Gateoverflow JEE Main 2023** — Mirrors only. Some shifts may be missing.
-5. **Assertion-reason options** — NEVER stored in JSON. Generated on-the-fly by adapter or display.
+5. **Assertion-reason options** — NEVER stored in JSON. Generated on-the-fly by display layer.
 6. **Match-columns** — Stored as MCQ with 4 pairing options. This matches JEE Advanced format exactly.
 
 ---
@@ -785,8 +778,7 @@ Tombstone: removed IDs never reused
 6. **Difficulty = null from AI** — human assigns via rubric
 7. **Checksum = SHA-256 before adding checksum field**
 8. **Human review = accuracy guarantee** — AI 80-95%, validation +5%, human catches rest
-9. **Zero Rankify schema changes** — 30-line adapter
-10. **Free tier only** — Mistral OCR 50k TPM / 1 RPS, NVIDIA Qwen3 Coder 480B 40 RPM / 262K ctx (primary), LongCat Flash Lite 30 RPM / 256K output / 50M tokens (best for big papers), Poolside Laguna M.1 30 RPM / 131K ctx (enable_thinking=false), Vanchin KAT-Coder 20 RPM / 2M TPM, Gemini 3.1 Flash Lite 15 RPM / 500 RPD, Cerebras gpt-oss-120b 5 RPM / 65K ctx (max_completion_tokens)
+9. **Free tier only** — Mistral OCR 50k TPM / 1 RPS, NVIDIA Qwen3 Coder 480B 40 RPM / 262K ctx (primary), LongCat Flash Lite 30 RPM / 256K output / 50M tokens (best for big papers), Poolside Laguna M.1 30 RPM / 131K ctx (enable_thinking=false), Vanchin KAT-Coder 20 RPM / 2M TPM, Gemini 3.1 Flash Lite 15 RPM / 500 RPD, Cerebras gpt-oss-120b 5 RPM / 65K ctx (max_completion_tokens)
 11. **No Docker, no database** — JSON files ARE the database
 
 ---
@@ -802,7 +794,7 @@ Tombstone: removed IDs never reused
 | P5 | Finalization | id-assigner, normalizer, topic-normalizer, exporter | ✅ |
 | P6 | Review | pdf-renderer, review-cli, batch-signoff | ✅ |
 | P7 | Scripts | batch-process, verify-all, rebuild-index, export, stats | ✅ |
-| P8 | API + Adapter | server.ts, rankify-adapter.ts | ✅ |
+| P8 | API | server.ts | ✅ |
 | P9 | Cross-Validate | cross-validator, diff-viewer | ✅ |
 
 All 9 phases compile. Zero TypeScript errors. 32 source files.

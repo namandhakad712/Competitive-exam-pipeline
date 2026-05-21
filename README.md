@@ -46,7 +46,7 @@
 
 ## What is Question-Pipeline?
 
-**Question-Pipeline** is a fully automated, zero-dependency Node.js/TypeScript system that transforms Indian exam PDFs (JEE Main, NEET, JEE Advanced, NCERT Exemplar) into high-quality structured JSON datasets.
+**Question-Pipeline** is a fully automated, zero-dependency Node.js/TypeScript system that transforms exam PDFs into high-quality structured JSON datasets.
 
 The pipeline handles the entire lifecycle:
 
@@ -61,10 +61,10 @@ The project was born from a simple observation: high-quality structured exam dat
 
 ### Why This Exists
 
-Indian exam PDFs are messy:
+Exam PDFs are messy:
 - No standardized format across years or exam bodies
 - Answer keys are sometimes embedded, sometimes separate, sometimes missing entirely
-- Bilingual papers (Hindi/English) with mixed layouts
+- Multi-language papers with mixed layouts
 - Diagrams embedded as images with no alt text
 - Handwritten annotations in scanned PDFs
 
@@ -90,7 +90,7 @@ Manual extraction doesn't scale. Pure AI extraction hallucinates. Question-Pipel
 | **Topic Normalization** | 250+ aliases → controlled vocabulary, with Levenshtein + cosine similarity fallback |
 | **LaTeX Normalization** | 60+ LaTeX-to-Unicode mappings, OCR ligature fixes |
 | **Bilingual Support** | `textHi` field for Hindi/English NEET papers |
-| **Rankify Adapter** | Zero-schema-change adapter for Rankify platform |
+
 
 ---
 
@@ -274,14 +274,17 @@ STAGE 10: CROSS-VALIDATE ──────────────────�
 
 ---
 
-## Supported Exams
+## Supported Exams (Configuration)
 
-| Exam | Code | Subjects | Duration | Marking | Sections |
-|---|---|---|---|---|---|
-| **JEE Main** | `jeemain` | physics, chemistry, mathematics | 180 min | +4 / -1 / 0 | Section A (20 mandatory), Section B (10/5 optional) |
-| **NEET UG** | `neet` | physics, chemistry, biology | 200 min | +4 / -1 / 0 | Section A (100 mandatory), Section B (100 mandatory) |
-| **JEE Advanced** | `jeeadv` | physics, chemistry, mathematics | 180 min | +4 / -1 / 0 | Section 1-3 (variable per year) |
-| **NCERT Exemplar** | `ncert-exemplar` | physics, chemistry, mathematics, biology | varies | varies | Chapter-wise |
+You define your exam in `src/types.ts`. Example configurations for Indian exams:
+
+| Exam | Code | Subjects | Duration | Marking |
+|---|---|---|---|---|
+| **JEE Main** | `jeemain` | physics, chemistry, mathematics | 180 min | +4 / -1 / 0 |
+| **NEET UG** | `neet` | physics, chemistry, biology | 200 min | +4 / -1 / 0 |
+| **Your Exam** | `your-exam` | your subjects | your duration | your marking |
+
+Add your own exam config in `src/types.ts` → add to the `ExamCode` type and define sections.
 
 ---
 
@@ -327,8 +330,8 @@ C:\QUESTION-PIPELINE\
 ├── .gitignore
 ├── .checkpoints.json           # Auto-tracked processing state
 │
-├── prompts/                    # AI agent prompts & protocols
-│   ├── AGENT.md                # 821-line operational manual for AI agents
+├── AGENT.md                    # AI agent operational manual (root-level for agent discovery)
+├── prompts/                    # Supporting AI prompts
 │   ├── MASTER-PROMPT.md        # Self-contained prompt (no codebase needed)
 │   └── AI-START-COMMAND.md     # AI session start instructions
 │
@@ -385,9 +388,7 @@ C:\QUESTION-PIPELINE\
 │   ├── api/
 │   │   └── server.ts           # Native http server (port 3456), SSE, dashboard
 │   │
-│   ├── adapters/
-│   │   └── rankify-adapter.ts  # Convert to Rankify platform format
-│   │
+
 │   └── utils/
 │       ├── logger.ts           # Structured logging (debug/info/warn/error)
 │       ├── rate-limiter.ts     # Queue + window-based API throttling
@@ -445,7 +446,7 @@ C:\QUESTION-PIPELINE\
 | `src/api/server.ts` | **API Server** — Native http, REST endpoints, SSE streaming, file serving |
 | `src/utils/rate-limiter.ts` | **Rate Limiter** — Queue + sliding window, per-provider configs |
 | `src/utils/embeddings.ts` | **Embeddings** — Mistral embeddings API with LRU cache, cosine similarity |
-| `src/adapters/rankify-adapter.ts` | **Rankify Adapter** — 30-line zero-change adapter for Rankify platform |
+
 
 ---
 
@@ -935,7 +936,7 @@ The system has a **zero-tolerance policy toward fabricated data**, embedded at e
 
 ### Agent Protocol
 
-The `prompts/AGENT.md` (821 lines) and `prompts/MASTER-PROMPT.md` (575 lines) both begin with the HARD RULE against fabrication. Any AI agent running the pipeline is explicitly instructed to:
+The `AGENT.md` and `prompts/MASTER-PROMPT.md` both begin with the HARD RULE against fabrication. Any AI agent running the pipeline is explicitly instructed to:
 
 1. Actually run the pipeline (not simulate it)
 2. Never generate questions from training data
@@ -1227,12 +1228,8 @@ All 9 phases are complete with zero TypeScript compilation errors across 32 sour
 | P5 | Finalization | `id-assigner.ts`, `normalizer.ts`, `topic-normalizer.ts`, `exporter.ts` | ✅ Complete |
 | P6 | Review | `pdf-renderer.ts`, `review-cli.ts`, `batch-signoff.ts` | ✅ Complete |
 | P7 | Scripts | `batch-process.ts`, `verify-all.ts`, `rebuild-index.ts`, `export-for-opensource.ts`, `stats.ts` | ✅ Complete |
-| P8 | API + Adapter | `server.ts`, `rankify-adapter.ts` | ✅ Complete |
+| P8 | API + Adapter | `server.ts` | ✅ Complete |
 | P9 | Cross-Validate | `cross-validator.ts`, `diff-viewer.ts` | ✅ Complete |
-
-### Current Dataset
-
-The pipeline has been used to process NEET papers spanning 2006-2026, with verified results in `data/neet/2023/06jun-s1/`.
 
 ---
 
@@ -1265,8 +1262,7 @@ The pipeline has been used to process NEET papers spanning 2006-2026, with verif
 6. **Difficulty = null from AI** — human assigns via rubric, never guessed by AI
 7. **Checksum = SHA-256 before adding checksum field** — self-verifying files
 8. **Human review = accuracy guarantee** — AI achieves 80-95%, validation adds 5%, human catches the rest
-9. **Zero Rankify schema changes** — 30-line adapter, no coupling
-10. **Free tier only** — all providers have free tiers, no paid API required
+9. **Free tier only** — all providers have free tiers, no paid API required
 11. **No Docker, no database** — JSON files ARE the database. Portable, inspectable, git-able
 12. **Subject files written FIRST** — `paper.json` is secondary merge, not primary
 13. **Tombstone IDs** — removed IDs never reused; external references stay valid
@@ -1294,6 +1290,7 @@ The pipeline has been used to process NEET papers spanning 2006-2026, with verif
 | **Tombstone** | Record of a deleted ID to prevent reuse |
 | **NTA** | National Testing Agency — conducts JEE Main and NEET |
 | **Gateoverflow** | Community mirror site for exam PDFs |
+| **Your Exam** | Configure your own exam in `src/types.ts` — exam code, subjects, marking scheme |
 
 ---
 
@@ -1303,171 +1300,37 @@ The pipeline has been used to process NEET papers spanning 2006-2026, with verif
 
 You may use, modify, and distribute this software for **noncommercial purposes only**. Commercial use (including internal use within a for-profit organization) requires explicit written permission from the author.
 
-Contact: [Naman Dhakad](https://github.com/namandhakad712/)
+## Provenance & Integrity
 
-## Provenance & Attribution
+Every JSON file produced by the pipeline includes a `provenance` field (set your own author/repo in `src/finalizers/exporter.ts`) and a `checksum` for tamper detection.
 
-Every JSON file produced by the pipeline includes a `provenance` field that cryptographically binds the output to this repository:
+### How Checksums Work
 
-```json
-"_provenance": {
-  "author": "Naman Dhakad",
-  "repo": "https://github.com/namandhakad712/Jee-Neet-PYQ",
-  "license": "PolyForm-Noncommercial-1.0.0",
-  "pipelineVersion": "1.0.0",
-  "generatedAt": "2026-05-20T..."
-}
-```
+1. Pipeline builds the entire file **without** the checksum field
+2. Computes SHA-256 of that data
+3. Appends `"checksum": "<hash>"` to the file
 
-This, combined with the SHA-256 checksum, provides a chain of provenance:
-- Anyone with a `.json` file can verify it came from **this** pipeline
-- The checksum detects any tampering (modifying answers, removing attribution)
-- The license requires this attribution to be preserved in all copies
-
-### How the Checksum Proves Ownership
-
-Every JSON file has a `checksum` field. Here is how it works:
-
-1. The pipeline builds the entire file **without** the checksum field
-2. It computes SHA-256 of that data → `abc123def...`
-3. It adds `"checksum": "abc123def..."` to the file
-
-Now, **if anyone edits the file** (modifies a question, removes your name, changes the provenance):
-
-```
-Original checksum  →  abc123def...
-Edited file's hash →  xyz789ghi...  (DIFFERENT)
-```
-
-The `npm run verify` command walks every `.json` in `data/` and compares each file's checksum against its content. Any mismatch is flagged:
-
-```
-FAILED: physics.json
-  Expected: abc123def...
-  Actual:   xyz789ghi...
-
-→ File was tampered with.
-```
-
-**How this helps you:**
-- Someone copies your repo, regenerates data → their `provenance.author` is different → checksum includes that → you can prove it's not from yours
-- Someone edits your output JSON to remove your name → checksum breaks → you prove tampering
-- Someone claims they produced your dataset → the `provenance` field says otherwise
-
-### How to Verify from Your Side
+Any edit to the output breaks the checksum — catch it with:
 
 ```powershell
-# Verify ALL datasets in data/ (walks every .json file):
 npm run verify
+```
 
-# Output:
-# Integrity: 12/12 passed, 0 failed, 0 missing checksums
+Manual verification:
 
-# If someone sends you a file, verify it manually:
+```powershell
 npx tsx -e "
 import { readFile } from 'fs/promises';
 import { createHash } from 'crypto';
-
 const raw = await readFile('path/to/file.json', 'utf8');
 const data = JSON.parse(raw);
 const expected = data.checksum;
-
-// Remove checksum, compute hash
 const clone = { ...data };
 delete clone.checksum;
 const sorted = JSON.stringify(clone, Object.keys(clone).sort());
 const actual = createHash('sha256').update(sorted).digest('hex');
-
 console.log(expected === actual ? 'ORIGINAL' : 'TAMPERED');
-console.log('Expected:', expected);
-console.log('Actual:  ', actual);
 "
 ```
-
-## GPG-Signed Commits
-
-Every commit can be cryptographically signed with your GPG key, proving **you** authored it. GitHub shows a green **Verified** badge on signed commits.
-
-### Setup (one-time)
-
-```powershell
-# Generate a GPG key and configure git:
-npm run gpg-setup
-
-# This will:
-# 1. Generate a 4096-bit RSA key pair
-# 2. Configure git to sign all commits
-# 3. Export your public key to clipboard
-# 4. Tell you to paste it at https://github.com/settings/keys
-```
-
-### Making Signed Commits
-
-Once configured, commits are automatically signed:
-
-```powershell
-git add -A
-git commit -m "feat: add something"
-# Git will prompt for your GPG passphrase
-git push
-# → GitHub shows "Verified" badge next to commit
-```
-
-## Signed Releases
-
-Every official release should be cryptographically signed so anyone can verify it came from you.
-
-```powershell
-# Create a signed release:
-npm run sign-release -- -Version "1.0.0"
-
-# Generates in releases/:
-#   question-pipeline-v1.0.0.zip
-#   question-pipeline-v1.0.0.zip.asc          ← GPG signature
-#   question-pipeline-v1.0.0.tar.gz
-#   question-pipeline-v1.0.0.tar.gz.asc       ← GPG signature
-#   question-pipeline-v1.0.0-sha256.txt
-#   question-pipeline-v1.0.0-sha256.txt.asc   ← GPG signature
-```
-
-### How Anyone Verifies Your Release
-
-```powershell
-# Step 1: Import your public key (published on GitHub)
-gpg --recv-key YOUR_KEY_ID
-
-# Step 2: Verify the GPG signature
-gpg --verify question-pipeline-v1.0.0.zip.asc question-pipeline-v1.0.0.zip
-# Output: "Good signature from 'Naman Dhakad <email>'"
-
-# Step 3: Verify checksum
-Get-FileHash -Algorithm SHA256 question-pipeline-v1.0.0.zip
-# Compare with value in question-pipeline-v1.0.0-sha256.txt
-```
-
-### Publishing a Release on GitHub
-
-```powershell
-# 1. Tag the release
-git tag -s v1.0.0 -m "v1.0.0"
-git push --tags
-
-# 2. Create release files
-npm run sign-release -- -Version "1.0.0"
-
-# 3. Go to https://github.com/namandhakad712/Jee-Neet-PYQ/releases/new
-#    Select tag v1.0.0
-#    Upload all files from releases/
-#    Publish
-```
-
-### Why This Matters
-
-| Without GPG | With GPG |
-|---|---|
-| Anyone can claim to be you | Only you can sign with your private key |
-| No way to verify authenticity | `gpg --verify` proves it's yours |
-| Users can't trust downloads | Users verify before using |
-| No proof of authorship | Court-admissible cryptographic proof |
 
 > **Question-Pipeline** — From PDF to structured dataset, with honest errors and zero fabrication.

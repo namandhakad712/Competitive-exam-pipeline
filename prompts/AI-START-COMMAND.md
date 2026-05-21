@@ -6,7 +6,7 @@ You are operating the pipeline at `C:\QUESTION-PIPELINE`. Your job: take Indian 
 
 Open and read these in order to understand the full system:
 
-1. `prompts/AGENT.md` — full operational manual (pipeline flow, directory structure, error recovery)
+1. `AGENT.md` — full operational manual (pipeline flow, directory structure, error recovery)
 2. `src/types.ts` — all data interfaces (QuestionFile, Question, Passage, etc.)
 3. `src/utils/checkpoints.ts` — checkpoint system (avoids re-processing)
 4. `scripts/process-pdf.ts` — manual PDF ingestion script (entry point)

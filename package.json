@@ -22,9 +22,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test-mistral": "npx tsx --env-file=.env scripts/test-mistral-structured.ts",
-    "test-full-pipeline": "npx tsx --env-file=.env scripts/test-full-pipeline.ts",
-    "gpg-setup": "powershell -ExecutionPolicy Bypass -File scripts/setup-gpg.ps1",
-    "sign-release": "powershell -ExecutionPolicy Bypass -File scripts/sign-release.ps1"
+    "test-full-pipeline": "npx tsx --env-file=.env scripts/test-full-pipeline.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
