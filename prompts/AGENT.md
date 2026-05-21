@@ -45,12 +45,18 @@ Then ask: *"Which exam and shift? e.g. jeemain 2025 22jan-shift1"*
 
 ```
 C:\QUESTION-PIPELINE\
-  plan.md                 1722-line design doc (read for full context)
-  AGENT.md                THIS FILE
+  prompts/
+    AGENT.md              THIS FILE
+    MASTER-PROMPT.md      Self-contained prompt
+    AI-START-COMMAND.md   Session start instructions
+  docs/
+    getting-started.md    Quick-start for humans
+    human-intervention.md When to pause and ask
+    model-limits.md       Provider rate limits
+    previous-plans/       Historical design docs
   package.json            scripts: scrape, batch, process-pdf, review, signoff, verify, stats,
                            status, api, export, test-models, rebuild-index, test
   tsconfig.json
-  input/                  Drop PDFs here for manual processing
   .checkpoints.json       Auto-tracked — which shifts have been processed
 
   src/
@@ -814,7 +820,7 @@ All 9 phases compile. Zero TypeScript errors. 32 source files.
    present each question yourself with accept/edit/skip/flag options.
 7. **Cross-validate when possible.** Running two models (Cerebras + Gemini) and only showing
    diffs to user saves ~80% review time.
-8. **When stuck:** Read plan.md (1722 lines, full design). Read the specific source file.
+8. **When stuck:** Read docs/previous-plans/PLAN.md (1722 lines, full design). Read the specific source file.
    Fix the issue, don't restart from scratch.
 9. **Don't install sharp.** It requires native build tools. Diagram cropping falls back gracefully.
 10. **Keep data lowercase.** Everywhere. No exceptions.

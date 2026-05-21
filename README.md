@@ -327,30 +327,20 @@ C:\QUESTION-PIPELINE\
 ├── .gitignore
 ├── .checkpoints.json           # Auto-tracked processing state
 │
-├── AGENT.md                    # 821-line operational manual for AI agents
-├── MASTER-PROMPT.md            # Self-contained prompt (no codebase needed)
-├── USER-START-HERE.md          # Quick-start for humans
-├── model-limits.md             # Provider rate limits reference
+├── prompts/                    # AI agent prompts & protocols
+│   ├── AGENT.md                # 821-line operational manual for AI agents
+│   ├── MASTER-PROMPT.md        # Self-contained prompt (no codebase needed)
+│   └── AI-START-COMMAND.md     # AI session start instructions
 │
-├── input/                      # Drop PDFs here for manual processing
-│   ├── neet-2025-04may-s1.pdf
-│   ├── neet-2026-2006.md
-│   └── ...
-│
-├── data/                       # OUTPUT: All JSON datasets + diagrams
-│   ├── index.json              # Master index of all processed datasets
-│   ├── .checkpoints.json       # Stage-level checkpoint tracking
-│   ├── neet/
-│   │   └── 2025/
-│   │       └── 04may-s1/
-│   │           ├── paper.json        # Full merged paper (all subjects)
-│   │           ├── physics.json      # Subject-level (numbers reset to 1)
-│   │           ├── chemistry.json
-│   │           ├── biology.json
-│   │           └── diagrams/         # Per-shift diagram images
-│   │               ├── physics/
-│   │               └── chemistry/
-│   └── ...
+├── docs/                       # User & developer documentation
+│   ├── getting-started.md      # Quick-start for humans
+│   ├── human-intervention.md   # When to pause and ask for help
+│   ├── model-limits.md         # Provider rate limits reference
+│   └── previous-plans/         # Historical design documents
+│       ├── PLAN.md
+│       ├── PLAN_V2.md
+│       ├── PLAN_V3.md
+│       └── PLAN_V4.md
 │
 ├── src/                        # SOURCE CODE
 │   ├── index.ts                # CLI entry point — command router
@@ -433,13 +423,7 @@ C:\QUESTION-PIPELINE\
 │
 ├── dashboard.html              # Web dashboard UI
 ├── pipeline-canvas.html        # Pipeline visualization
-├── pipeline-flow-v2.html       # Pipeline flow diagram
-│
-└── previous-plans/             # Historical design documents
-    ├── PLAN.md
-    ├── PLAN_V2.md
-    ├── PLAN_V3.md
-    └── PLAN_V4.md
+└── pipeline-flow-v2.html       # Pipeline flow diagram
 ```
 
 ### File Role Summary
@@ -951,7 +935,7 @@ The system has a **zero-tolerance policy toward fabricated data**, embedded at e
 
 ### Agent Protocol
 
-The `AGENT.md` (821 lines) and `MASTER-PROMPT.md` (575 lines) both begin with the HARD RULE against fabrication. Any AI agent running the pipeline is explicitly instructed to:
+The `prompts/AGENT.md` (821 lines) and `prompts/MASTER-PROMPT.md` (575 lines) both begin with the HARD RULE against fabrication. Any AI agent running the pipeline is explicitly instructed to:
 
 1. Actually run the pipeline (not simulate it)
 2. Never generate questions from training data
