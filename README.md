@@ -615,13 +615,25 @@ Rank  Provider            Model                  RPM   Context   Daily Free
 
 ### Answer Key Detection
 
-The system automatically detects answer keys using 12 regex patterns:
-- `answer key` / `answer :` / `ans:` headings
-- Numbered answer tables
-- Answer columns in question lists
-- Roman numeral patterns
+The system automatically detects answers using two strategies:
 
-When detected: answers are extracted from the key and matched by question number.
+**Strategy 1: Answer Key at End (separate pages)**
+- Scans last 10 pages for answer key patterns using regex:
+  - `answer key` / `answer :` / `ans:` headings
+  - Numbered answer tables (e.g., `| Q | Ans |`)
+  - NTA-style patterns: `1(2)`, `2(4)`, `3(1)`
+  - Sequential number + answer letter patterns
+- If 20+ answer patterns found on a page → classified as answer key page
+- Detected answer key pages are **appended to ALL chunks** during distributed extraction for 99% accuracy
+- User is prompted to confirm auto-detected answer key pages (can be skipped with `--skip-answer-key-prompt`)
+
+**Strategy 2: Inline Answers (throughout document)**
+- If no answer key pages found on last 10 pages, the system scans the full document for inline answer markers
+- Detects patterns like `[Ans: 2]`, `(Ans: 3)`, `{Ans: 1}` appearing next to question options
+- When inline answers are detected, each chunk extracts answers independently from the markers found within it
+- No separate answer key page needed — answers are embedded in the question text itself
+
+When detected: answers are extracted from the key or inline markers and matched by question number.
 When NOT detected: ALL answers set to empty string (anti-hallucination rule).
 
 ---

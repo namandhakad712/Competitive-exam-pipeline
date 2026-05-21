@@ -86,6 +86,14 @@ npm run process-pdf -- --input input/neet-2025-04may-s1.pdf --skip-answer-key-pr
 npm run process-pdf -- --input input/neet-2025-04may-s1.pdf --answer-key input/neet-2025-04may-s1-answers.pdf
 ```
 
+**📋 How Answer Key Detection Works:**
+The system uses two strategies to find answers:
+1. **Answer key at end** — scans last 10 pages for answer key tables/patterns, appends detected pages to all chunks
+2. **Inline answers** — if no key pages found, scans full document for markers like `[Ans: 2]`, `(Ans: 3)` next to questions
+3. **Neither found** — all answers set to empty string (anti-hallucination rule)
+
+Use `--skip-answer-key-prompt` to auto-accept detected answer keys without confirmation.
+
 **⚠️ NOTE**: Enhanced OCR with structured annotations can timeout on large PDFs (>20 pages). Use consensus extraction for best results!
 
 ---

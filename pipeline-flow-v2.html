@@ -485,7 +485,7 @@ code{
       <div class="card-badge amber">3 MODELS</div>
     </div>
     <div class="card-desc">
-      Auto-detects answer key pages, appends to all chunks, confirms via interactive prompt, then runs 3 AI models in parallel. Builds consensus through majority voting. Detects conflicts automatically. Backfills missing answers from answer key.
+      Two-strategy answer detection: (1) scans last 10 pages for answer key tables → appends to all chunks, (2) fallback scans full doc for inline markers like [Ans: 2]. Confirms via interactive prompt, then runs 3 AI models in parallel. Builds consensus through majority voting. Detects conflicts automatically.
     </div>
     <div class="providers">
       <div class="provider primary">

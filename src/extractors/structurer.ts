@@ -481,8 +481,9 @@ function getDefaultProviders(): Provider[] {
 // Answer key page detection — finds pages with answer keys
 // ─────────────────────────────────────────────────────────────
 
-async function detectAnswerKeyPages(pages: PageContent[], skipConfirmation = false): Promise<PageContent[]> {
+async function detectAnswerKeyPages(pages: PageContent[], skipConfirmation = false): Promise<{ pages: PageContent[]; inlineAnswers: boolean }> {
   const answerKeyPages: PageContent[] = [];
+  let inlineAnswers = false;
   
   // Check last 10 pages for answer key patterns
   const lastPages = pages.slice(-Math.min(10, pages.length));
@@ -522,6 +523,15 @@ async function detectAnswerKeyPages(pages: PageContent[], skipConfirmation = fal
     }
   }
   
+  // Fallback: if last-10-pages detection failed, check full document for inline answer markers
+  if (answerKeyPages.length === 0) {
+    const fullText = pages.map(p => p.markdown).join("\n\n");
+    if (hasAnswerKey(fullText)) {
+      inlineAnswers = true;
+      logger.info(`📋 Inline answers detected throughout document (no separate answer key page)`);
+    }
+  }
+
   // User confirmation for security
   if (answerKeyPages.length > 0 && !skipConfirmation) {
     logger.info(`\n🔍 Answer key auto-detected on ${answerKeyPages.length} page(s): [${answerKeyPages.map(p => p.page).join(', ')}]`);
@@ -531,7 +541,7 @@ async function detectAnswerKeyPages(pages: PageContent[], skipConfirmation = fal
     // Check if running in non-interactive mode (CI/automated)
     if (process.env.CI === 'true' || process.env.NON_INTERACTIVE === 'true') {
       logger.info(`⚙️  Non-interactive mode: Using auto-detected answer key`);
-      return answerKeyPages;
+      return { pages: answerKeyPages, inlineAnswers };
     }
     
     try {
@@ -541,7 +551,7 @@ async function detectAnswerKeyPages(pages: PageContent[], skipConfirmation = fal
       
       if (response === 'n' || response === 'no') {
         logger.warn(`❌ User confirmed: NO answer key. Answers will be empty.`);
-        return [];
+        return { pages: [], inlineAnswers: false };
       }
       
       logger.info(`✅ User confirmed: Answer key will be used`);
@@ -551,7 +561,7 @@ async function detectAnswerKeyPages(pages: PageContent[], skipConfirmation = fal
     }
   }
   
-  return answerKeyPages;
+  return { pages: answerKeyPages, inlineAnswers };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -578,13 +588,15 @@ export async function distributedExtract(
   }
 
   // STEP 1: Detect answer key pages BEFORE chunking
-  const answerKeyPages = await detectAnswerKeyPages(pages, skipAnswerKeyPrompt);
+  const { pages: answerKeyPages, inlineAnswers } = await detectAnswerKeyPages(pages, skipAnswerKeyPrompt);
   
   if (answerKeyPages.length > 0) {
     logger.info(`✅ Answer key detected: ${answerKeyPages.length} page(s) [${answerKeyPages.map(p => p.page).join(', ')}]`);
     logger.info(`📋 Strategy: Appending answer key to ALL chunks for 99% accuracy`);
+  } else if (inlineAnswers) {
+    logger.info(`📋 Inline answers detected — each chunk will extract answers independently`);
   } else {
-    logger.warn(`⚠️  No answer key detected in last 10 pages — answers will be empty`);
+    logger.warn(`⚠️  No answer key detected — answers will be empty unless found inline per chunk`);
   }
 
   // STEP 2: Split into overlapping chunks

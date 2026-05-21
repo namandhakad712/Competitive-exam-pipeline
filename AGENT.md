@@ -101,17 +101,20 @@ Then ask: *"Which exam and shift? e.g. jeemain 2025 22jan-shift1"*
       # Update structurer.ts (models + priority), rate-limiter.ts (RPM limits),
       # and test-models.ts (health checks) when something breaks.
       structurer.ts        Single-provider + distributedExtract(). Priority: NVIDIA > LongCat > Poolside > Vanchin > Gemini > Cerebras.
-                            For >12 pages: splits into overlapping 15-page chunks (5-page overlap), assigns providers round-robin in
-                            parallel, retries failed chunks with next provider. Results merged + deduplicated by merger.ts.
+                             For >12 pages: splits into overlapping 15-page chunks (5-page overlap), assigns providers round-robin in
+                             parallel, retries failed chunks with next provider. Results merged + deduplicated by merger.ts.
+                             Answer key detection: scans last 10 pages for key patterns → appends to all chunks.
+                             Fallback: if no key pages found, scans full doc for inline answers ([Ans: 2], etc.).
       chunker.ts           splitIntoChunks(pages, 15, 5) → overlapping page groups. Guarantees no question spans across chunks.
       merger.ts            mergeChunks() — dedup by Q number. Prefers: non-empty answer > longer options > earlier chunk.
-                            textSimilarity() uses Mistral embeddings API via src/utils/embeddings.ts,
-                            falls back to Jaccard word-set similarity when API unavailable.
+                             textSimilarity() uses Mistral embeddings API via src/utils/embeddings.ts,
+                             falls back to Jaccard word-set similarity when API unavailable.
       consensus-extractor.ts Multi-provider consensus extraction.
-                            extractWithConsensus(pages, exam, providers) runs 3 providers in parallel,
-                            majority-vote per field, builds ConsensusResult with confidence scores
-                            (high ≥0.8, medium ≥0.5, low) and conflict detection.
-                            distributedConsensusExtract() for >12-page PDFs.
+                             extractWithConsensus(pages, exam, providers) runs 3 providers in parallel,
+                             majority-vote per field, builds ConsensusResult with confidence scores
+                             (high ≥0.8, medium ≥0.5, low) and conflict detection.
+                             distributedConsensusExtract() for >12-page PDFs.
+                             Answer key detection: same two-strategy approach (key pages at end → inline fallback).
       progressive-review.ts Chunk-by-chunk human-in-loop review.
                             progressiveExtract() shows sample question after each chunk,
                             prompts [c]ontinue/[r]etry/[a]bort. Falls back to non-interactive
