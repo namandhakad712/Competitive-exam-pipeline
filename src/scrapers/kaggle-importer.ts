@@ -141,7 +141,7 @@ export async function importKaggleDataset(
       provenance: {
         author: "",
         repo: "",
-        license: "PolyForm-Noncommercial-1.0.0",
+        license: "GPLv3 OR Commercial",
         pipelineVersion: "1.0.0",
         generatedAt: now,
       },

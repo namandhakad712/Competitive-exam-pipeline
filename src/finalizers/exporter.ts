@@ -116,7 +116,7 @@ export async function exportDataset(input: ExportInput, revision = 1): Promise<Q
     provenance: {
       author: "",
       repo: "",
-      license: "PolyForm-Noncommercial-1.0.0",
+      license: "GPLv3 OR Commercial",
       pipelineVersion: "1.0.0",
       generatedAt: now,
     },

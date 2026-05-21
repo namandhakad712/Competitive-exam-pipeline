@@ -1,4 +1,27 @@
-# question-pipeline
+```
+
+░██████╗░██╗░░░██╗███████╗░██████╗████████╗██╗░█████╗░███╗░░██╗
+██╔═══██╗██║░░░██║██╔════╝██╔════╝╚══██╔══╝██║██╔══██╗████╗░██║
+██║██╗██║██║░░░██║█████╗░░╚█████╗░░░░██║░░░██║██║░░██║██╔██╗██║
+╚██████╔╝██║░░░██║██╔══╝░░░╚═══██╗░░░██║░░░██║██║░░██║██║╚████║
+░╚═██╔═╝░╚██████╔╝███████╗██████╔╝░░░██║░░░██║╚█████╔╝██║░╚███║
+░░░╚═╝░░░░╚═════╝░╚══════╝╚═════╝░░░░╚═╝░░░╚═╝░╚════╝░╚═╝░░╚══╝
+
+███████╗██╗░░██╗████████╗██████╗░░█████╗░░█████╗░████████╗██╗░█████╗░███╗░░██╗
+██╔════╝╚██╗██╔╝╚══██╔══╝██╔══██╗██╔══██╗██╔══██╗╚══██╔══╝██║██╔══██╗████╗░██║
+█████╗░░░╚███╔╝░░░░██║░░░██████╔╝███████║██║░░╚═╝░░░██║░░░██║██║░░██║██╔██╗██║
+██╔══╝░░░██╔██╗░░░░██║░░░██╔══██╗██╔══██║██║░░██╗░░░██║░░░██║██║░░██║██║╚████║
+███████╗██╔╝╚██╗░░░██║░░░██║░░██║██║░░██║╚█████╔╝░░░██║░░░██║╚█████╔╝██║░╚███║
+╚══════╝╚═╝░░╚═╝░░░╚═╝░░░╚═╝░░╚═╝╚═╝░░╚═╝░╚════╝░░░░╚═╝░░░╚═╝░╚════╝░╚═╝░░╚══╝
+
+██████╗░██╗██████╗░███████╗██╗░░░░░██╗███╗░░██╗███████╗
+██╔══██╗██║██╔══██╗██╔════╝██║░░░░░██║████╗░██║██╔════╝
+██████╔╝██║██████╔╝█████╗░░██║░░░░░██║██╔██╗██║█████╗░░
+██╔═══╝░██║██╔═══╝░██╔══╝░░██║░░░░░██║██║╚████║██╔══╝░░
+██║░░░░░██║██║░░░░░███████╗███████╗██║██║░╚███║███████╗
+╚═╝░░░░░╚═╝╚═╝░░░░░╚══════╝╚══════╝╚═╝╚═╝░░╚══╝╚══════╝
+
+```
 
 > **Batch pipeline for exam question extraction and JSON dataset generation**  
 > Automatically downloads PDFs, performs OCR, extracts questions via multi-AI consensus, validates, and exports structured datasets.
@@ -7,7 +30,7 @@
   <img src="https://img.shields.io/badge/status-production-green" alt="Status">
   <img src="https://img.shields.io/badge/node-%3E%3D18-brightgreen" alt="Node">
   <img src="https://img.shields.io/badge/typescript-strict-blue" alt="TypeScript">
-  <img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue" alt="License">
+  <img src="https://img.shields.io/badge/license-GPLv3%20%7C%20Commercial-blue" alt="License">
   <img src="https://img.shields.io/badge/dependencies-0%20runtime-brightgreen" alt="Zero Runtime Dependencies">
   <img src="https://img.shields.io/badge/coverage-32%20files%20%7C%200%20errors-success" alt="Build">
 </p>
@@ -561,7 +584,7 @@ Subject files are written **FIRST** with question numbers reset to 1-N within ea
 ```
 Rank  Provider            Model                  RPM   Context   Daily Free
 ────────────────────────────────────────────────────────────────────────────
- 7    Poolside            Laguna M.1            100    131K      Unlimited
+ 7    Poolside            Laguna M.1            100    131K      Unlimited(preview)
  6    LongCat (Lite)      Flash-Lite             30    256K      50M tokens
  5    NVIDIA (Qwen)       Qwen3 Coder 480B       40    262K      2,400 RPD
  4    NVIDIA (Mistral)    Mistral-Large-3        40    262K      2,400 RPD
@@ -627,7 +650,7 @@ Copy `.env.example` to `.env` and add your keys:
 MISTRAL_API_KEY=sk-...           # Required for OCR
 NVIDIA_API_KEY=nvapi-...         # Optional — primary extraction
 LONGCAT_API_KEY=sk-...           # Optional — 50M tokens/day free
-POOLSIDE_API_KEY=...             # Optional — unlimited free
+POOLSIDE_API_KEY=...             # Optional — unlimited(preview) free
 VC_API_KEY=...                   # Optional — Vanchin KAT-Coder
 GEMINI_API_KEY=AIzaSy...         # Optional — 500 RPD
 CEREBRAS_API_KEY=...             # Optional — fallback
@@ -1161,7 +1184,7 @@ These situations trigger a halt and explicit user notification:
 | **NVIDIA** | Llama-4 Maverick | 40 | 1M | 2,400 RPD | Multimodal, 400B MoE |
 | **LongCat Lite** | Flash-Lite | 30 | 256K | 50M tokens/day | Best for bulk processing |
 | **LongCat Chat** | Flash-Chat | 30 | 256K | 500K tokens/day | General purpose |
-| **Poolside** | Laguna M.1 | 30/100 | 131K | Unlimited | Free preview |
+| **Poolside** | Laguna M.1 | 30/100 | 131K | Unlimited(preview) | Free preview |
 | **Vanchin** | KAT-Coder-Air-V1 | 20 | 2M | 28,800 RPD | Code validation |
 | **Gemini** | 3.1 Flash Lite | 15 | 1M | 500 RPD | Validation, 250K TPM |
 | **Cerebras** | GPT-OSS-120B | 5 | 65K | 2,400 RPD | Fallback, 30K TPM |
@@ -1244,7 +1267,7 @@ All 9 phases are complete with zero TypeScript compilation errors across 32 sour
 | `MISTRAL_API_KEY` | ✅ Yes | — | Mistral AI OCR and embeddings |
 | `NVIDIA_API_KEY` | ❌ No | — | NVIDIA NIM (Qwen3 Coder 480B, primary) |
 | `LONGCAT_API_KEY` | ❌ No | — | LongCat Flash Lite (50M tokens/day free) |
-| `POOLSIDE_API_KEY` | ❌ No | — | Poolside Laguna M.1 (unlimited free) |
+| `POOLSIDE_API_KEY` | ❌ No | — | Poolside Laguna M.1 (unlimited(preview) free) |
 | `VC_API_KEY` | ❌ No | — | Vanchin KAT-Coder-Air-V1 |
 | `GEMINI_API_KEY` | ❌ No | — | Gemini 3.1 Flash Lite (500 RPD) |
 | `CEREBRAS_API_KEY` | ❌ No | — | Cerebras GPT-OSS-120B (fallback) |
@@ -1298,11 +1321,20 @@ All 9 phases are complete with zero TypeScript compilation errors across 32 sour
 
 ---
 
-## License
+## License — Dual-Licensing
 
-**PolyForm Noncommercial 1.0.0** — See [LICENSE](./LICENSE) for full text.
+This software is available under two options (your choice):
 
-You may use, modify, and distribute this software for **noncommercial purposes only**. Commercial use (including internal use within a for-profit organization) requires explicit written permission from the author.
+| Option | License | When to Use |
+|---|---|---|
+| **Open Source** | **GPLv3** — full source must remain open | You're building open-source software |
+| **Commercial** | Private license (contact author) | You're a proprietary company that can't open-source |
+
+**GPLv3:** Anyone can use, modify, and distribute for free, including commercially, **but** any derived work must also be GPLv3 (copyleft).
+
+**Commercial:** Proprietary companies that don't want to open-source their code buy a private license. Contact the author to purchase.
+
+---
 
 ## Provenance & Integrity
 
@@ -1337,4 +1369,10 @@ console.log(expected === actual ? 'ORIGINAL' : 'TAMPERED');
 "
 ```
 
-> **Question-Pipeline** — From PDF to structured dataset. Built for anyone, on free-tier AI, meant to evolve. When providers change, use AI agentic coding to update configs — the architecture stays.
+> **Question-Pipeline** — From PDF to structured dataset. GPLv3 / Commercial dual-license.
+```
+
+█▄▄ █▄█   █▄░█ ▄▀█ █▀▄▀█ ▄▀█ █▄░█
+█▄█ ░█░   █░▀█ █▀█ █░▀░█ █▀█ █░▀█
+```
+> **GitHub:** [namandhakad712](https://github.com/namandhakad712)

@@ -1,4 +1,4 @@
-export type Exam = string; // Any exam identifier — previously a fixed union of "jeemain" | "neet" | "jeeadv" | "ncert-exemplar"
+export type Exam = string; // Any exam identifier ï¿½ previously a fixed union of "jeemain" | "neet" | "jeeadv" | "ncert-exemplar"
 
 export type Subject = "physics" | "chemistry" | "mathematics" | "biology";
 
@@ -311,7 +311,7 @@ export interface EnhancedOcrResult {
 export type ProviderName =
   | "nvidia"           // legacy, now nvidia-qwen
   | "longcat"          // legacy, now longcat-lite
-  | "poolside"         // Unlimited, 131K context
+  | "poolside"         // Unlimited(preview), 131K context
   | "vanchin"
   | "gemini"           // 500 RPD, 15 RPM, 1M context
   | "cerebras"         // 2,400 RPD, 65K context

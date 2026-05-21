@@ -36,7 +36,7 @@ const geminiLimiter = new RateLimiter({ maxRequests: 15, windowMs: 60_000 });
 
 // ---- Provider ranking (higher = more reliable for extraction) ----
 const PROVIDER_RANK: Record<ProviderName, number> = {
-  poolside: 7,           // Unlimited + 131K context
+  poolside: 7,           // Unlimited(preview) + 131K context
   "longcat-lite": 6,     // 50M tokens/day + 256K context
   "nvidia-qwen": 5,      // 2,400 RPD + 262K context
   nvidia: 5,             // same as nvidia-qwen
@@ -155,11 +155,11 @@ function parseExtractionResponse(
   const safeQuestions = answerKeyDetected
     ? questions
     : questions.map((q) => ({
-        ...q,
-        answer: "",
-        answers: null,
-        answerPrecision: null,
-      }));
+      ...q,
+      answer: "",
+      answers: null,
+      answerPrecision: null,
+    }));
 
   const normalized = normalizeQuestions(safeQuestions);
 
@@ -438,9 +438,9 @@ export function buildConsensus(
 ): ConsensusResult {
   const maxQuestions = candidates.length > 0
     ? Math.max(
-        ...candidates.flatMap((c) => c.questions.map((q) => q.number)),
-        0,
-      )
+      ...candidates.flatMap((c) => c.questions.map((q) => q.number)),
+      0,
+    )
     : 0;
   const consensus: PartialQuestion[] = [];
   const conflicts: Conflict[] = [];
@@ -494,8 +494,8 @@ export function buildConsensus(
     const answerAgreement =
       answerValues.length > 0
         ? answerValues.filter(
-            (a) => normalizeStr(a) === normalizeStr(answerVote),
-          ).length
+          (a) => normalizeStr(a) === normalizeStr(answerVote),
+        ).length
         : 0;
 
     // Assign confidence based on agreement ratio
@@ -682,74 +682,74 @@ export async function extractWithConsensus(
 
 async function detectAnswerKeyPages(pages: PageContent[], skipConfirmation = false): Promise<PageContent[]> {
   const answerKeyPages: PageContent[] = [];
-  
+
   // Check last 10 pages for answer key patterns
   const lastPages = pages.slice(-Math.min(10, pages.length));
-  
+
   for (const page of lastPages) {
     const text = page.markdown.toLowerCase();
-    
+
     // Count answer key indicators
     let score = 0;
-    
+
     // Strong indicators
     if (/answer\s*key/i.test(text)) score += 5;
     if (/\|\s*q\s*\|\s*ans\s*\|/i.test(text)) score += 5; // table format
     if (/question\s*no/i.test(text)) score += 3;
-    
+
     // Count answer patterns (many answers = likely answer key)
     const answerPatterns = [
       /\d+\s*[:\-\)]\s*[1-4abcd]/gi,  // "1: 2" or "1) A"
       /\d+\s*\(\s*[1-4]\s*\)/gi,       // "1(2)" NTA style
       /\d+\s*[-–]\s*[A-Da-d]/gi,       // "1-A" format
     ];
-    
+
     let answerCount = 0;
     for (const pattern of answerPatterns) {
       const matches = text.match(pattern);
       if (matches) answerCount += matches.length;
     }
-    
+
     // If page has 20+ answers, likely answer key
     if (answerCount >= 20) score += 4;
     else if (answerCount >= 10) score += 2;
-    
+
     // Threshold: score >= 5 means answer key page
     if (score >= 5) {
       answerKeyPages.push(page);
       logger.info(`Answer key detected on page ${page.page} (score: ${score}, answers: ${answerCount})`);
     }
   }
-  
+
   // User confirmation for security
   if (answerKeyPages.length > 0 && !skipConfirmation) {
     logger.info(`\n🔍 Answer key auto-detected on ${answerKeyPages.length} page(s): [${answerKeyPages.map(p => p.page).join(', ')}]`);
     logger.info(`📄 Total pages in PDF: ${pages.length}`);
     logger.info(`❓ Does this PDF have an answer key at the end? (Y/n)`);
-    
+
     // Check if running in non-interactive mode (CI/automated)
     if (process.env.CI === 'true' || process.env.NON_INTERACTIVE === 'true') {
       logger.info(`⚙️  Non-interactive mode: Using auto-detected answer key`);
       return answerKeyPages;
     }
-    
+
     try {
       // Dynamic import to avoid issues if not installed
       const readlineSync = await import('readline-sync');
       const response = readlineSync.default.question('> ').trim().toLowerCase();
-      
+
       if (response === 'n' || response === 'no') {
         logger.warn(`❌ User confirmed: NO answer key. Answers will be empty.`);
         return [];
       }
-      
+
       logger.info(`✅ User confirmed: Answer key will be used`);
     } catch (err) {
       logger.warn(`⚠️  Interactive prompt failed: ${err instanceof Error ? err.message : String(err)}`);
       logger.info(`⚙️  Falling back to auto-detection`);
     }
   }
-  
+
   return answerKeyPages;
 }
 
@@ -767,7 +767,7 @@ export async function distributedConsensusExtract(
 
   // STEP 1: Detect answer key pages BEFORE chunking
   const answerKeyPages = await detectAnswerKeyPages(pages, skipAnswerKeyPrompt);
-  
+
   if (answerKeyPages.length > 0) {
     logger.info(`✅ Answer key detected: ${answerKeyPages.length} page(s) [${answerKeyPages.map(p => p.page).join(', ')}]`);
     logger.info(`📋 Strategy: Appending answer key to ALL chunks for 99% accuracy`);
@@ -780,7 +780,7 @@ export async function distributedConsensusExtract(
   logger.info(
     `Distributed consensus: ${pages.length} pages → ${chunks.length} chunks`,
   );
-  
+
   // STEP 3: Append answer key pages to ALL chunks
   if (answerKeyPages.length > 0) {
     for (const chunk of chunks) {
