@@ -232,11 +232,19 @@ function parsePdfFilename(name: string): { exam: string; year: number; shift: st
     { re: /^jee[-_](?:main[-_])?(\d{4})[-_]?(.+)$/i, exam: "jeemain" },
     { re: /^ncert[-_]?(?:exemplar[-_])?(\d+)[-_](.+)$/i, exam: "ncert-exemplar" },
   ];
+  const MONTHS: Record<string, string> = {
+    january: "jan", february: "feb", march: "mar", april: "apr", june: "jun", july: "jul",
+    august: "aug", september: "sep", october: "oct", november: "nov", december: "dec",
+  };
   for (const p of patterns) {
     const m = base.match(p.re);
     if (m) {
       let shift = m[2].replace(/\.pdf$/i, "").replace(/[-_]+/g, "-");
       shift = shift.replace(/^(?:shift[-]?)?/i, "").trim();
+      /* Normalise full month names to 3-letter abbreviations */
+      for (const [full, abbr] of Object.entries(MONTHS)) {
+        shift = shift.replace(new RegExp(full, "gi"), abbr);
+      }
       return { exam: p.exam, year: parseInt(m[1], 10), shift };
     }
   }
@@ -369,8 +377,8 @@ function showEnvCheck(): void {
   const aiReady = aiVars.some((v) => !!process.env[v.name]);
   console.log(
     `  ${s("Summary:", BOLD)}  ${setCount}/${ENV_VARS.length} keys set` +
-      (ocrReady ? `  |  ${s("OCR: READY", GREEN, BOLD)}` : `  |  ${s("OCR: NO KEY", RED, BOLD)}`) +
-      (aiReady ? `  |  ${s("AI: READY", GREEN, BOLD)}` : `  |  ${s("AI: NO KEY", YELLOW, BOLD)}`),
+    (ocrReady ? `  |  ${s("OCR: READY", GREEN, BOLD)}` : `  |  ${s("OCR: NO KEY", RED, BOLD)}`) +
+    (aiReady ? `  |  ${s("AI: READY", GREEN, BOLD)}` : `  |  ${s("AI: NO KEY", YELLOW, BOLD)}`),
   );
   console.log();
   divider();
@@ -501,7 +509,7 @@ async function selectPdfFile(): Promise<{ path: string; force: boolean }> {
     try { cpData = JSON.parse(readFileSync(cpPath, "utf-8")) as Record<string, unknown>; } catch { /* ignore */ }
   }
 
-  for (;;) {
+  for (; ;) {
     banner();
     console.log(s("  PDF File Selection", BOLD, WHITE));
     divider();
@@ -696,7 +704,7 @@ async function runPipeline(pdfPath: string, ocrEngine: string, force: boolean): 
     const args = [scriptPath, "--input", pdfPath, "--ocr", ocrEngine];
     if (force) args.push("--force");
     const child = spawn("npx", ["tsx", ...args], {
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["inherit", "pipe", "pipe"],
       env: process.env,
       shell: true,
     });

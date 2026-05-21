@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import readlineSync from "readline-sync";
 import { join, basename, extname, dirname } from "path";
 import { readFile, writeFile } from "fs/promises";
 import { existsSync } from "fs";
@@ -457,9 +458,27 @@ Answer Key Detection:
       logger.info(
         `Already processed: ${exam}/${year}/${shift} (${existing.totalQuestions} questions, ${existing.timestamp.slice(0, 10)})`,
       );
-      logger.info("Use --force to reprocess.");
       logger.info(`Existing file: ${existing.sourceFile}`);
-      return;
+
+      if (process.stdin.isTTY) {
+        logger.info("");
+        const ans = readlineSync.question(
+          `  [F]orce re-process (overwrites existing data)  |  [S]kip (use existing)  |  [C]ancel\n  Choice [F/S/C]: `,
+        );
+        const upper = ans.trim().toUpperCase();
+        if (upper === "F") {
+          logger.info("Force re-processing...");
+        } else if (upper === "S" || upper === "") {
+          logger.info("Skipping. Goodbye!");
+          process.exit(0);
+        } else {
+          logger.info("Cancelled.");
+          process.exit(1);
+        }
+      } else {
+        logger.info("Use --force to reprocess.");
+        return;
+      }
     }
 
     // Check for resume point
