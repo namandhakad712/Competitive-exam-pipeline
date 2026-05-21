@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PDF Book Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Serif:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0b10;--surface:#12141e;--surface-2:#1a1d2a;--border:#232738;
+  --text:#e6e8f0;--text-dim:#8b91a8;--text-muted:#5a5f78;
+  --accent:#4b8dff;--accent-glow:rgba(75,141,255,.08);
+  --green:#34d399;--amber:#fbbf24;--red:#f87171;
+  --radius:8px;
+  --paper:#f5f0e8;--paper-text:#1a1a2e;--paper-dim:#555;
+  --paper-border:#ddd6c8;--paper-accent:#2563eb;
+}
+html,body{height:100%}
+body{font-family:'Inter',system-ui,-apple-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;display:flex;flex-direction:column}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+
+/* ── Top bar ── */
+.topbar{
+  display:flex;align-items:center;gap:10px;padding:8px 16px;
+  background:var(--surface);border-bottom:1px solid var(--border);
+  flex-shrink:0;min-height:48px;flex-wrap:wrap
+}
+.topbar .brand{font-weight:700;font-size:13px;letter-spacing:-.02em;display:flex;align-items:center;gap:6px;margin-right:8px;color:var(--accent)}
+.topbar .brand svg{width:18px;height:18px}
+.topbar select{
+  background:var(--surface-2);color:var(--text);border:1px solid var(--border);
+  border-radius:var(--radius);padding:5px 10px;font-size:13px;font-family:inherit;
+  cursor:pointer;outline:none;min-width:100px
+}
+.topbar select:hover{border-color:var(--accent)}
+.topbar select:focus{border-color:var(--accent)}
+.topbar #refreshBtn{
+  background:var(--surface-2);color:var(--text);border:1px solid var(--border);
+  border-radius:var(--radius);width:30px;height:30px;font-size:16px;line-height:1;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;
+  font-family:inherit;transition:border-color .15s
+}
+.topbar #refreshBtn:hover{border-color:var(--accent);color:var(--accent)}
+.topbar #refreshBtn:active{background:var(--accent);color:#fff}
+.topbar .status{font-size:11px;color:var(--text-dim);margin-left:auto}
+.topbar .status strong{color:var(--text)}
+.topbar .status .qcount{color:var(--accent)}
+
+/* ── Content area ── */
+.content{
+  flex:1;overflow-y:auto;display:flex;justify-content:center;
+  background:#ebe5d9;
+  padding:30px 20px
+}
+.book-page{
+  max-width:820px;width:100%;align-self:flex-start;
+  background:var(--paper);color:var(--paper-text);
+  border-radius:12px;padding:48px 56px 80px;
+  box-shadow:0 8px 40px rgba(0,0,0,.5),0 2px 8px rgba(0,0,0,.3);
+  font-family:'Noto Serif',Georgia,'Times New Roman',serif;
+  line-height:1.7;font-size:15px;min-height:100vh
+}
+.book-page .empty-state{
+  text-align:center;padding:80px 20px;font-family:'Inter',sans-serif
+}
+.book-page .empty-state h2{font-size:20px;margin-bottom:8px;color:var(--paper-text)}
+.book-page .empty-state p{color:var(--paper-dim);font-size:14px}
+
+/* ── Subject header ── */
+.subject-header{
+  display:flex;align-items:baseline;gap:16px;
+  border-bottom:2px solid var(--paper-border);padding-bottom:10px;margin-bottom:28px
+}
+.subject-header h1{font-size:22px;font-weight:700;letter-spacing:-.02em;color:var(--paper-text)}
+.subject-header .q-range{font-size:13px;color:var(--paper-dim);font-family:'Inter',sans-serif}
+
+/* ── Section title ── */
+.section-title{
+  font-size:16px;font-weight:700;color:var(--paper-text);
+  margin:24px 0 12px;padding:8px 14px;
+  background:#eae4d8;border-radius:6px;
+  font-family:'Inter',sans-serif;letter-spacing:.3px;text-transform:uppercase;font-size:12px
+}
+
+/* ── Question block ── */
+.question-block{
+  margin-bottom:28px;padding-bottom:20px;
+  border-bottom:1px solid var(--paper-border)
+}
+.question-block:last-child{border-bottom:none;margin-bottom:0}
+.q-number{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:32px;height:32px;border-radius:50%;
+  background:var(--paper-accent);color:#fff;
+  font-size:13px;font-weight:700;font-family:'Inter',sans-serif;
+  flex-shrink:0
+}
+.q-header{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px}
+.q-text{flex:1;padding-top:4px}
+.q-text p{margin-bottom:6px}
+.q-text p:last-child{margin-bottom:0}
+.q-meta{font-size:12px;color:var(--paper-dim);font-family:'Inter',sans-serif;margin-left:42px;margin-bottom:8px}
+.q-meta .tag{display:inline-block;padding:1px 8px;border-radius:4px;background:#eae4d8;margin-right:4px;font-size:11px}
+.q-meta .tag.ans{background:var(--green);color:#fff}
+.q-meta .tag.sec{background:var(--paper-accent);color:#fff}
+
+/* ── Options ── */
+.options{list-style:none;margin:10px 0 6px 42px}
+.options li{
+  padding:4px 10px;margin-bottom:2px;border-radius:4px;
+  font-size:14px;transition:background .15s
+}
+.options li:hover{background:rgba(0,0,0,.03)}
+.options li .opt-letter{
+  display:inline-block;width:22px;height:22px;line-height:22px;
+  text-align:center;border-radius:50%;font-size:12px;font-weight:600;
+  background:#eae4d8;margin-right:8px;font-family:'Inter',sans-serif;color:var(--paper-dim)
+}
+.options li.correct{background:#d4edda}
+.options li.correct .opt-letter{background:var(--green);color:#fff}
+.options li.correct::after{content:" \u2713";color:var(--green);font-weight:700;margin-left:4px}
+
+/* ── Diagrams ── */
+.diagram-container{
+  margin:12px 0 8px 42px;padding:12px;background:#eae4d8;border-radius:8px;text-align:center
+}
+.diagram-container img{
+  max-width:100%;max-height:360px;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.08)
+}
+.diagram-container .diagram-label{
+  font-size:11px;color:var(--paper-dim);margin-top:6px;font-family:'Inter',sans-serif;
+  font-style:italic
+}
+
+/* ── Math ── */
+.katex{font-size:1.05em}
+
+/* ── Responsive ── */
+@media(max-width:700px){
+  .book-page{padding:24px 20px}
+  .topbar select{min-width:80px;font-size:12px;padding:4px 8px}
+  .options li{padding:3px 8px}
+}
+
+/* ── Loading ── */
+.loading{text-align:center;padding:80px 20px;color:var(--paper-dim);font-family:'Inter',sans-serif}
+.spinner{width:32px;height:32px;border:3px solid var(--paper-border);border-top-color:var(--paper-accent);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Error ── */
+.error-state{text-align:center;padding:60px 20px;font-family:'Inter',sans-serif}
+.error-state h2{color:var(--red);font-size:18px;margin-bottom:6px}
+.error-state p{color:var(--paper-dim);font-size:13px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+    PDF Viewer
+  </div>
+  <select id="examSelect"><option value="">Exam...</option></select>
+  <select id="yearSelect" disabled><option value="">Year...</option></select>
+  <select id="shiftSelect" disabled><option value="">Shift...</option></select>
+  <select id="subjectSelect"><option value="all">All Subjects</option></select>
+  <button id="refreshBtn" title="Refresh paper list from disk">&#x21bb;</button>
+  <span class="status" id="statusBar"><span id="qCount" class="qcount">0</span> questions</span>
+</div>
+
+<div class="content">
+  <div class="book-page" id="bookPage">
+    <div class="empty-state">
+      <h2>Select a paper to view</h2>
+      <p>Choose an exam, year, and shift from the dropdowns above.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────
+let papers = [];
+let currentExam = "";
+let currentYear = "";
+let currentShift = "";
+
+// ─── Helpers ──────────────────────────────────────────────────────
+
+function qs(id) { return document.getElementById(id); }
+
+function escHtml(s) {
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function renderMath(html) {
+  if (typeof katex === "undefined") return html;
+  return html.replace(/\$\$([^$]+)\$\$/g, (_, m) => {
+    try { return katex.renderToString(m.trim(), { displayMode: true, throwOnError: false }); }
+    catch { return `<span class="math-error">$${m}$$</span>`; }
+  }).replace(/\$([^$]+)\$/g, (_, m) => {
+    try { return katex.renderToString(m.trim(), { displayMode: false, throwOnError: false }); }
+    catch { return `<span class="math-error">$${m}$</span>`; }
+  });
+}
+
+const OPT_LETTERS = ["(1)", "(2)", "(3)", "(4)", "(5)", "(6)", "(7)", "(8)", "(9)", "(10)"];
+
+function saveSelection() {
+  return {
+    exam: qs("examSelect").value,
+    year: qs("yearSelect").value,
+    shift: qs("shiftSelect").value,
+    subject: qs("subjectSelect").value,
+  };
+}
+
+function restoreSelection(saved) {
+  qs("examSelect").value = saved.exam;
+  const examEvt = new Event("change"); qs("examSelect").dispatchEvent(examEvt);
+  qs("yearSelect").value = saved.year;
+  const yearEvt = new Event("change"); qs("yearSelect").dispatchEvent(yearEvt);
+  qs("shiftSelect").value = saved.shift;
+  const shiftEvt = new Event("change"); qs("shiftSelect").dispatchEvent(shiftEvt);
+  qs("subjectSelect").value = saved.subject;
+}
+
+// ─── Load papers ──────────────────────────────────────────────────
+
+async function loadPapers(silent) {
+  try {
+    const saved = silent ? null : saveSelection();
+    const res = await fetch("/api/v1/papers");
+    const data = await res.json();
+    papers = data.papers || [];
+    populateExamSelect();
+    if (saved && saved.exam) restoreSelection(saved);
+  } catch (err) {
+    console.error("Failed to load papers:", err);
+    if (!silent) qs("bookPage").innerHTML = `<div class="error-state"><h2>Connection Error</h2><p>Cannot reach the API server. Make sure <code>npm run api</code> is running on port 3456.</p></div>`;
+  }
+}
+
+function populateExamSelect() {
+  const exams = [...new Set(papers.map(p => p.exam))].sort();
+  const sel = qs("examSelect");
+  sel.innerHTML = '<option value="">Exam...</option>' + exams.map(e => `<option value="${e}">${e.toUpperCase()}</option>`).join("");
+}
+
+function populateYearSelect(exam) {
+  const years = [...new Set(papers.filter(p => p.exam === exam).map(p => p.year))].sort((a,b) => b - a);
+  const sel = qs("yearSelect");
+  sel.innerHTML = '<option value="">Year...</option>' + years.map(y => `<option value="${y}">${y}</option>`).join("");
+  sel.disabled = false;
+}
+
+function populateShiftSelect(exam, year) {
+  const shifts = papers.filter(p => p.exam === exam && p.year === year).map(p => p.shift).sort();
+  const sel = qs("shiftSelect");
+  sel.innerHTML = '<option value="">Shift...</option>' + shifts.map(s => `<option value="${s}">${s}</option>`).join("");
+  sel.disabled = false;
+}
+
+function populateSubjectSelect(subjects) {
+  const sel = qs("subjectSelect");
+  const current = sel.value;
+  sel.innerHTML = '<option value="all">All Subjects</option>' + subjects.map(s => `<option value="${s}">${s.charAt(0).toUpperCase() + s.slice(1)}</option>`).join("");
+  if (current && subjects.includes(current)) sel.value = current;
+}
+
+// ─── Event handlers ───────────────────────────────────────────────
+
+qs("examSelect").addEventListener("focus", () => { loadPapers(true); });
+qs("examSelect").addEventListener("change", () => {
+  currentExam = qs("examSelect").value;
+  qs("yearSelect").innerHTML = '<option value="">Year...</option>';
+  qs("yearSelect").disabled = true;
+  qs("shiftSelect").innerHTML = '<option value="">Shift...</option>';
+  qs("shiftSelect").disabled = true;
+  qs("subjectSelect").innerHTML = '<option value="all">All Subjects</option>';
+  if (currentExam) populateYearSelect(currentExam);
+  renderPaper();
+});
+
+qs("yearSelect").addEventListener("change", () => {
+  currentYear = qs("yearSelect").value;
+  qs("shiftSelect").innerHTML = '<option value="">Shift...</option>';
+  qs("shiftSelect").disabled = true;
+  if (currentYear) populateShiftSelect(currentExam, parseInt(currentYear, 10));
+  renderPaper();
+});
+
+qs("shiftSelect").addEventListener("change", () => {
+  currentShift = qs("shiftSelect").value;
+  if (currentShift) {
+    loadPaperMeta(currentExam, currentYear, currentShift);
+  }
+  renderPaper();
+});
+
+qs("subjectSelect").addEventListener("change", renderPaper);
+
+qs("refreshBtn").addEventListener("click", () => { loadPapers(false); });
+
+// ─── Load paper metadata (subjects) ──────────────────────────────
+
+async function loadPaperMeta(exam, year, shift) {
+  try {
+    const res = await fetch(`/api/v1/data/${exam}/${year}/${shift}/paper.json`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.subjects && data.subjects.length > 0) {
+        populateSubjectSelect(data.subjects);
+      }
+    }
+  } catch {}
+}
+
+// ─── Render paper ─────────────────────────────────────────────────
+
+async function renderPaper() {
+  const book = qs("bookPage");
+  if (!currentExam || !currentYear || !currentShift) {
+    book.innerHTML = `<div class="empty-state"><h2>Select a paper to view</h2><p>Choose an exam, year, and shift from the dropdowns above.</p></div>`;
+    return;
+  }
+
+  const subject = qs("subjectSelect").value;
+  const exam = currentExam;
+  const year = currentYear;
+  const shift = currentShift;
+
+  book.innerHTML = `<div class="loading"><div class="spinner"></div><p>Loading paper...</p></div>`;
+
+  try {
+    let allQuestions = [];
+
+    const paperRes = await fetch(`/api/v1/data/${exam}/${year}/${shift}/paper.json`);
+    if (!paperRes.ok) throw new Error(`paper.json returned ${paperRes.status}`);
+    const paperData = await paperRes.json();
+    const paperQ = paperData.questions || [];
+
+    if (subject === "all") {
+      allQuestions = paperQ;
+    } else {
+      const subRes = await fetch(`/api/v1/data/${exam}/${year}/${shift}/${subject}.json`);
+      if (subRes.ok) {
+        const subData = await subRes.json();
+        allQuestions = subData.questions || [];
+      } else {
+        allQuestions = paperQ.filter(q => q.subject === subject);
+      }
+    }
+
+    renderQuestions(book, allQuestions, exam, year, shift);
+  } catch (err) {
+    console.error("Render error:", err);
+    book.innerHTML = `<div class="error-state"><h2>Failed to load</h2><p>${escHtml(err.message)}</p></div>`;
+  }
+}
+
+function renderQuestions(container, questions, exam, year, shift) {
+  if (!questions || questions.length === 0) {
+    container.innerHTML = `<div class="empty-state"><h2>No questions found</h2><p>This paper may have no questions for the selected subject.</p></div>`;
+    qs("qCount").textContent = "0";
+    return;
+  }
+
+  qs("qCount").textContent = questions.length;
+
+  // Group by subject
+  const groups = {};
+  for (const q of questions) {
+    const subj = q.subject || "unknown";
+    if (!groups[subj]) groups[subj] = [];
+    groups[subj].push(q);
+  }
+
+  const subjectOrder = ["physics", "chemistry", "biology"];
+  const sortedSubjects = Object.keys(groups).sort((a, b) => {
+    const ia = subjectOrder.indexOf(a);
+    const ib = subjectOrder.indexOf(b);
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    if (ia !== -1) return -1;
+    if (ib !== -1) return 1;
+    return a.localeCompare(b);
+  });
+
+  let html = "";
+  let globalIdx = 0;
+
+  for (const subj of sortedSubjects) {
+    const qs = groups[subj].sort((a, b) => (a.number || 0) - (b.number || 0));
+    const first = qs[0].number || qs[0].id;
+    const last = qs[qs.length - 1].number || qs[qs.length - 1].id;
+    const range = first === last ? `Q${first}` : `Q${first}\u2013Q${last}`;
+
+    html += `<div class="subject-header"><h1>${subj.charAt(0).toUpperCase() + subj.slice(1)}</h1><span class="q-range">${range} \u2022 ${qs.length} question${qs.length > 1 ? "s" : ""}</span></div>`;
+
+    // Track sections for section headers
+    let lastSection = "";
+
+    for (const q of qs) {
+      if (q.section && q.section !== lastSection) {
+        lastSection = q.section;
+        html += `<div class="section-title">Section ${q.section.toUpperCase()}</div>`;
+      }
+
+      const qNum = q.number || (globalIdx + 1);
+      const options = q.options || [];
+
+      html += `<div class="question-block" id="q-${q.id}">`;
+      html += `<div class="q-header"><span class="q-number">${qNum}</span><div class="q-text">`;
+
+      // Question text with math
+      const renderedText = renderMath(escHtml(q.text));
+      html += `<p>${renderedText}</p>`;
+      html += `</div></div>`;
+
+      // Meta tags
+      html += `<div class="q-meta">`;
+      html += `<span class="tag sec">${q.section || "?"}</span>`;
+      html += q.topic ? `<span class="tag">${escHtml(q.topic)}</span>` : "";
+      html += q.answer ? `<span class="tag ans">Ans: ${escHtml(q.answer)}</span>` : "";
+      if (q.negativeMarks < 0) html += `<span class="tag" style="background:#e74c3c;color:#fff">-${Math.abs(q.negativeMarks)}</span>`;
+      html += `</div>`;
+
+      // Options
+      if (options.length > 0) {
+        const correctIdx = parseInt(q.answer, 10);
+        html += `<ul class="options">`;
+        for (let i = 0; i < options.length; i++) {
+          const label = OPT_LETTERS[i] || `(${i + 1})`;
+          const isCorrect = !isNaN(correctIdx) && i === correctIdx;
+          html += `<li class="${isCorrect ? "correct" : ""}"><span class="opt-letter">${label}</span> ${renderMath(escHtml(options[i]))}</li>`;
+        }
+        html += `</ul>`;
+      }
+
+      // Diagrams
+      if (q.hasDiagram && q.diagrams && q.diagrams.length > 0) {
+        for (const d of q.diagrams) {
+          const imgUrl = `/api/v1/data/${exam}/${year}/${shift}/${d.file}`;
+          html += `<div class="diagram-container">`;
+          html += `<img src="${imgUrl}" alt="${escHtml(d.label || "diagram")}" loading="lazy">`;
+          if (d.label) html += `<div class="diagram-label">${escHtml(d.label)}</div>`;
+          html += `</div>`;
+        }
+      }
+
+      html += `</div>`;
+      globalIdx++;
+    }
+  }
+
+  container.innerHTML = html;
+}
+
+// ─── Init ─────────────────────────────────────────────────────────
+loadPapers();
+</script>
+</body>
+</html>

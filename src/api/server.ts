@@ -490,6 +490,25 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       return;
     }
 
+    // ── Papers list ──
+    if (path === "/api/v1/papers" && req.method === "GET") {
+      const paperFiles = await findPaperFiles();
+      const papers = await Promise.all(paperFiles.map(async (fp) => {
+        const data = await loadJsonFile<{ exam?: string; year?: number; shift?: string; total?: number; subjects?: string[] }>(fp);
+        const rel = relative(DATA_DIR, fp);
+        const parts = rel.split(/[/\\]/);
+        return {
+          exam: data?.exam || parts[0] || "unknown",
+          year: data?.year ?? (parts.length > 1 ? parseInt(parts[1], 10) : 0),
+          shift: data?.shift || parts[2] || "unknown",
+          total: data?.total || 0,
+          subjects: data?.subjects || [],
+        };
+      }));
+      sendJson(res, 200, { success: true, papers: papers.filter(p => p.exam && p.year && p.shift) });
+      return;
+    }
+
     // ── Stats ──
     if (path === "/api/v1/stats" && req.method === "GET") {
       const indexData = await loadJsonFile(DATA_DIR + "/index.json");
@@ -524,6 +543,42 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
           res.end(h);
         }).catch(() => sendJson(res, 500, { error: "Failed to read dashboard.html" }));
         return;
+      }
+    }
+
+    // ── PDF Viewer HTML ──
+    if (path === "/pdf-viewer" || path === "/viewer") {
+      const viewerPath = join(process.cwd(), "pdf-viewer.html");
+      if (existsSync(viewerPath)) {
+        readFile(viewerPath, "utf8").then(h => {
+          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Access-Control-Allow-Origin": "*" });
+          res.end(h);
+        }).catch(() => sendJson(res, 500, { error: "Failed to read pdf-viewer.html" }));
+        return;
+      }
+    }
+
+    // ── Static data files (JSON / images) ──
+    if (path.startsWith("/api/v1/data/") && req.method === "GET") {
+      const relPath = path.replace("/api/v1/data/", "");
+      const filePath = join(DATA_DIR, relPath.replace(/\.\./g, ""));
+      if (existsSync(filePath)) {
+        const ext = extname(filePath).toLowerCase();
+        if (ext === ".json") {
+          readFile(filePath, "utf8").then(d => {
+            res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+            res.end(d);
+          }).catch(() => sendJson(res, 404, { error: "Not found" }));
+          return;
+        }
+        if ([".png", ".jpg", ".jpeg", ".svg", ".gif"].includes(ext)) {
+          const mime = ext === ".png" ? "image/png" : ext === ".svg" ? "image/svg+xml" : ext === ".gif" ? "image/gif" : "image/jpeg";
+          readFile(filePath).then(d => {
+            res.writeHead(200, { "Content-Type": mime, "Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=3600" });
+            res.end(d);
+          }).catch(() => sendJson(res, 404, { error: "Not found" }));
+          return;
+        }
       }
     }
 

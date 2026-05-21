@@ -18,6 +18,7 @@
     "export": "npx tsx --env-file=.env scripts/export-for-opensource.ts",
     "rebuild-index": "npx tsx --env-file=.env scripts/rebuild-index.ts",
     "api": "npx tsx --env-file=.env src/api/server.ts",
+    "pdf-viewer": "powershell -Command Start-Process http://localhost:3456/pdf-viewer; npx tsx --env-file=.env src/api/server.ts",
     "interactive": "npx tsx --env-file=.env scripts/interactive.ts",
     "test-models": "npx tsx --env-file=.env scripts/test-models.ts",
     "test": "vitest run",
