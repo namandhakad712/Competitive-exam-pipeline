@@ -19,6 +19,7 @@ interface BatchConfig {
   marksUnanswered: number;
   sections: Record<string, SectionConfig>;
   skipReview?: boolean;
+  useClassDir?: boolean;
 }
 
 const EXAM_DEFAULTS: Record<Exam, Partial<BatchConfig>> = {

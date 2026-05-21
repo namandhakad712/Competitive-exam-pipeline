@@ -1,6 +1,7 @@
 import { request as httpsRequest } from "https";
 import { logger } from "../utils/logger.js";
 import { RateLimiter } from "../utils/rate-limiter.js";
+import { normalizeQuestions, assignSections } from "../utils/normalization.js";
 import type { PageContent, PartialQuestion, Exam, Passage } from "../types.js";
 import { splitIntoChunks, chunkToMarkdown } from "./chunker.js";
 import { mergeChunks } from "./merger.js";
