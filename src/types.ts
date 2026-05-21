@@ -1,4 +1,4 @@
-export type Exam = "jeemain" | "neet" | "jeeadv" | "ncert-exemplar";
+export type Exam = string; // Any exam identifier — previously a fixed union of "jeemain" | "neet" | "jeeadv" | "ncert-exemplar"
 
 export type Subject = "physics" | "chemistry" | "mathematics" | "biology";
 

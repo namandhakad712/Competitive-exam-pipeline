@@ -41,7 +41,7 @@ async function rebuildIndex(): Promise<void> {
       if (stats.isDirectory()) {
         const dirName = item.toLowerCase();
 
-        if (!exam && ["jeemain", "neet", "jeeadv", "ncert-exemplar"].includes(dirName)) {
+        if (!exam) {
           await walk(fullPath, dirName as Exam, undefined);
         } else if (exam && year === undefined && /^\d{4}$/.test(dirName)) {
           await walk(fullPath, exam, parseInt(dirName, 10));

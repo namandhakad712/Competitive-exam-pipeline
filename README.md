@@ -1,6 +1,6 @@
 # question-pipeline
 
-> **Batch pipeline for Indian exam question extraction and JSON dataset generation**  
+> **Batch pipeline for exam question extraction and JSON dataset generation**  
 > Automatically downloads PDFs, performs OCR, extracts questions via multi-AI consensus, validates, and exports structured datasets.
 
 <p align="center">
@@ -276,7 +276,7 @@ STAGE 10: CROSS-VALIDATE ──────────────────�
 
 ## Supported Exams (Configuration)
 
-You define your exam in `src/types.ts`. Example configurations for Indian exams:
+You define your exam in `src/types.ts`. Example configurations:
 
 | Exam | Code | Subjects | Duration | Marking |
 |---|---|---|---|---|

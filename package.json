@@ -2,7 +2,7 @@
   "name": "question-pipeline",
   "version": "1.0.0",
   "private": true,
-  "description": "Batch pipeline for Indian exam question extraction and JSON dataset generation",
+  "description": "Batch pipeline for exam question extraction and JSON dataset generation",
   "type": "module",
   "scripts": {
     "build": "tsc",

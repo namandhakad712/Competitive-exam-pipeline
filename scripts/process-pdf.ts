@@ -46,6 +46,8 @@ const EXAM_DEFAULTS: Record<
     marksIncorrect: number;
     marksUnanswered: number;
     sections: Record<string, SectionConfig>;
+    expectedCount: number;
+    useClassDir: boolean;
   }>
 > = {
   jeemain: {
@@ -134,9 +136,9 @@ const EXAM_DEFAULTS: Record<
   },
 };
 
-// ─────────────────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 // Filename parser (unchanged)
-// ─────────────────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 interface ParsedMeta {
   exam: Exam;
@@ -259,18 +261,14 @@ function parseShift(
   const dd = dayStr.padStart(2, "0");
   const shift = `${dd}${monthStr.toLowerCase().slice(0, 3)}-s${shiftStr}`;
 
-  const subjects: Record<Exam, Subject[]> = {
-    jeemain: ["physics", "chemistry", "mathematics"],
-    neet: ["physics", "chemistry", "biology"],
-    jeeadv: ["physics", "chemistry", "mathematics"],
-    "ncert-exemplar": ["physics", "chemistry", "mathematics", "biology"],
-  };
+  const defaults = EXAM_DEFAULTS[exam] ?? EXAM_DEFAULTS["__default__"];
+  const subjects: Subject[] = (defaults.subjects ?? ["physics", "chemistry", "mathematics"]) as Subject[];
 
   return {
     exam,
     year: parseInt(yearStr),
     shift,
-    subjects: subjects[exam],
+    subjects,
   };
 }
 
@@ -294,7 +292,7 @@ async function mergeAnswerKey(
   const keyText = ocrResult.pages.map((p) => p.markdown).join("\n\n").trim();
 
   if (!keyText) {
-    logger.warn("  Answer key OCR returned empty — proceeding without it");
+    logger.warn("  Answer key OCR returned empty Ã¢â‚¬â€ proceeding without it");
     return { text, keyFound: false };
   }
 
@@ -307,9 +305,9 @@ async function mergeAnswerKey(
   };
 }
 
-// ─────────────────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 // MAIN
-// ─────────────────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 export async function main(
   args: string[] = process.argv.slice(2),
@@ -348,7 +346,7 @@ Required:
 
 Options:
   --answer-key, -k <path>  Path to separate answer key PDF (optional)
-  --exam <name>            Override exam detection (jeemain/neet/jeeadv/ncert-exemplar)
+  --exam <name>            Override exam detection (inferred from filename if omitted)
   --year <year>            Override year detection
   --shift <shift>          Override shift detection
   --force, -f              Reprocess even if checkpoint exists
@@ -382,7 +380,7 @@ Answer Key Detection:
   if (values.exam)
     meta = {
       ...(meta || {
-        exam: "jeemain" as Exam,
+        exam: "__default__" as Exam,
         year: 2025,
         shift: "1",
         subjects: ["physics", "chemistry", "mathematics"] as Subject[],
@@ -392,7 +390,7 @@ Answer Key Detection:
   if (values.year)
     meta = {
       ...(meta || {
-        exam: "jeemain" as Exam,
+        exam: "__default__" as Exam,
         year: 2025,
         shift: "1",
         subjects: ["physics", "chemistry", "mathematics"] as Subject[],
@@ -402,7 +400,7 @@ Answer Key Detection:
   if (values.shift)
     meta = {
       ...(meta || {
-        exam: "jeemain" as Exam,
+        exam: "__default__" as Exam,
         year: 2025,
         shift: "1",
         subjects: ["physics", "chemistry", "mathematics"] as Subject[],
@@ -422,7 +420,7 @@ Answer Key Detection:
   const useEnhancedOcr = values["use-enhanced-ocr"] ?? true;
   const skipAnswerKeyPrompt = values["skip-answer-key-prompt"] ?? false;
 
-  // Check checkpoint — skip if already processed (unless --force)
+  // Check checkpoint Ã¢â‚¬â€ skip if already processed (unless --force)
   if (!values.force) {
     const existing = await isProcessed(exam, year, shift);
     if (existing && existing.stages?.export?.status === "completed") {
@@ -445,14 +443,14 @@ Answer Key Detection:
 
   const dataDir = join(process.cwd(), "data");
   const shiftDir =
-    exam === "ncert-exemplar"
+    EXAM_DEFAULTS[exam]?.useClassDir ?? false
       ? join(dataDir, exam, `class-${year}`)
       : join(dataDir, exam, String(year ?? "unknown"), shift ?? "unknown");
 
   const startTime = Date.now();
 
   try {
-    // ── STEP 1: OCR ──
+    // Ã¢â€â‚¬Ã¢â€â‚¬ STEP 1: OCR Ã¢â€â‚¬Ã¢â€â‚¬
     let ocrOutput: OcrResult | EnhancedOcrResult;
     const ocrStatus = await getStageStatus(exam, year, shift, "ocr");
 
@@ -508,7 +506,7 @@ Answer Key Detection:
       logger.info(`  Answer key merged: ${answerKeyFound ? "yes" : "not found or empty"}`);
     }
 
-    // ── STEP 2: Extraction ──
+    // Ã¢â€â‚¬Ã¢â€â‚¬ STEP 2: Extraction Ã¢â€â‚¬Ã¢â€â‚¬
     let extraction: {
       questions: PartialQuestion[];
       passages: Passage[];
@@ -558,7 +556,7 @@ Answer Key Detection:
       );
       logger.info(`  ${extraction.questions.length} questions extracted`);
       logger.info(
-        `  Answer key ${extraction.answerKeyFound ? "found" : "NOT found — answers set to empty"}`,
+        `  Answer key ${extraction.answerKeyFound ? "found" : "NOT found Ã¢â‚¬â€ answers set to empty"}`,
       );
 
       if (extraction.questions.length === 0) {
@@ -566,14 +564,8 @@ Answer Key Detection:
         process.exit(1);
       }
 
-      // Post-extraction validation
-      const expectedCounts: Record<Exam, number> = {
-        jeemain: 90,
-        neet: 200,
-        jeeadv: 54,
-        "ncert-exemplar": 0,
-      };
-      const expected = expectedCounts[exam];
+            // Post-extraction sanity check (expected counts from EXAM_DEFAULTS)
+      const expected = EXAM_DEFAULTS[exam]?.expectedCount ?? 0;
       if (
         expected > 0 &&
         Math.abs(extraction.questions.length - expected) > 10
@@ -595,7 +587,7 @@ Answer Key Detection:
       );
     }
 
-    // ── STEP 3: Cache diagrams ──
+    // Ã¢â€â‚¬Ã¢â€â‚¬ STEP 3: Cache diagrams Ã¢â€â‚¬Ã¢â€â‚¬
     const diagramStatus = await getStageStatus(
       exam,
       year,
@@ -628,7 +620,7 @@ Answer Key Detection:
       await updateStage(exam, year, shift, "diagrams", "completed");
     }
 
-    // ── STEP 4: Finalize and export ──
+    // Ã¢â€â‚¬Ã¢â€â‚¬ STEP 4: Finalize and export Ã¢â€â‚¬Ã¢â€â‚¬
     const validateStatus = await getStageStatus(
       exam,
       year,
@@ -641,7 +633,7 @@ Answer Key Detection:
     } else {
       logger.info("Step 4/4: Finalizing and exporting...");
 
-      const defaults = EXAM_DEFAULTS[exam] || EXAM_DEFAULTS["jeemain"];
+      const defaults = EXAM_DEFAULTS[exam] || EXAM_DEFAULTS["__default__"];
       const file = await exportDataset({
         exam,
         year,

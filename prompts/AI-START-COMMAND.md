@@ -1,6 +1,6 @@
 # AI Starting Prompt — Exam PDF Pipeline
 
-You are operating the pipeline at `C:\QUESTION-PIPELINE`. Your job: take Indian exam PDFs (JEE Main, NEET, JEE Adv) and turn them into structured JSON datasets.
+You are operating the pipeline at `.`. Your job: take Indian exam PDFs (JEE Main, NEET, JEE Adv) and turn them into structured JSON datasets.
 
 ## First steps — READ THESE FILES
 
@@ -16,7 +16,7 @@ Open and read these in order to understand the full system:
 
 ```powershell
 # 1. Verify the build
-cd C:\QUESTION-PIPELINE
+cd .
 npx tsc --noEmit
 
 # 2. Check if any PDFs are waiting

@@ -13,6 +13,7 @@ import type { ProviderName, Subject } from "../src/types.js";
 
 async function testFullPipeline() {
   const pdfPath = process.argv[2];
+  const examArg = process.argv[3] || "default-exam";
   if (!pdfPath || !existsSync(pdfPath)) {
     console.error("Usage: npx tsx scripts/test-full-pipeline.ts <path-to-pdf>");
     process.exit(1);
@@ -84,7 +85,7 @@ async function testFullPipeline() {
       logger.info(`  Using consensus extraction (${activeProviders.length} providers)`);
       const consensus = await extractWithConsensus(
         ocrResult.pages,
-        "neet",
+        examArg,
         activeProviders,
       );
       questions = consensus.questions;
@@ -93,7 +94,7 @@ async function testFullPipeline() {
       logger.info(`  ${consensus.conflicts.length} conflicts`);
     } else {
       logger.info("  Using single-provider extraction");
-      const extraction = await extractQuestions(ocrResult.pages, "neet");
+      const extraction = await extractQuestions(ocrResult.pages, examArg);
       questions = extraction.questions;
       passages = extraction.passages;
       answerKeyFound = extraction.answerKeyFound;
@@ -118,7 +119,7 @@ async function testFullPipeline() {
   // Stage 4: Validation
   logger.info("Stage 4: Validation");
   const file = await exportDataset({
-    exam: "neet",
+    exam: examArg,
     year: 2025,
     shift: "test",
     paper: null,

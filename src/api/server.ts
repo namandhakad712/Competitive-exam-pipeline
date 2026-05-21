@@ -299,7 +299,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
       let fullCmd = stage.cmd;
       let fullArgs = stage.args
-        .replace(/\{exam\}/g, body.exam || "jeemain")
+        .replace(/\{exam\}/g, body.exam || "default-exam")
         .replace(/\{year\}/g, String(body.year || "2025"))
         .replace(/\{shift\}/g, body.shift || "1")
         .replace(/\{shifts\}/g, String(body.shifts || "1"))
@@ -351,11 +351,11 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     // ── Review: start session ──
     if (path === "/api/v1/review/start" && req.method === "POST") {
       const body = JSON.parse(await readBody(req));
-      const paperPath = join(DATA_DIR, body.exam || "jeemain", String(body.year || "2025"), body.shift || "1", "paper.json");
+      const paperPath = join(DATA_DIR, body.exam || "default-exam", String(body.year || "2025"), body.shift || "1", "paper.json");
       const data = await loadJsonFile<{ questions: Question[]; total: number; subjects: string[] }>(paperPath);
       if (!data) { sendJson(res, 404, { error: "paper.json not found" }); return; }
       reviewSession = {
-        exam: body.exam || "jeemain",
+        exam: body.exam || "default-exam",
         year: body.year || 2025,
         shift: body.shift || "1",
         questions: data.questions || [],

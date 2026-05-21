@@ -26,7 +26,7 @@
 ## 2. First Contact — What to Do When User Gives API Keys
 
 ```powershell
-cd C:\QUESTION-PIPELINE
+cd .
 $env:MISTRAL_API_KEY = "sk-..."
 $env:NVIDIA_API_KEY = "nvapi-..."
 $env:LONGCAT_API_KEY = "sk-..."
@@ -44,7 +44,7 @@ Then ask: *"Which exam and shift? e.g. jeemain 2025 22jan-shift1"*
 ## 3. Directory — Every File by Role
 
 ```
-C:\QUESTION-PIPELINE\
+.\
   AGENT.md              THIS FILE
   prompts/
     one-shot-prompt.md    For AI chat apps (PDF only, no diagrams)
@@ -274,7 +274,7 @@ This is the core loop. You do ALL of these steps. User only provides API keys an
 ### Step 1: Install & Verify
 
 ```powershell
-cd C:\QUESTION-PIPELINE
+cd .
 npm install
 # Verify tsconfig compiles:
 npx tsc --noEmit
@@ -481,7 +481,7 @@ This means **official NTA PDFs work too** — just provide both files.
 
 ### Drop PDFs in `input/` folder
 
-Put any PDF in `C:\QUESTION-PIPELINE\input\` and reference it:
+Put any PDF in `.\input\` and reference it:
 ```powershell
 npm run process-pdf -- --input "input/Allen-JEE-2025-22Jan.pdf"
 ```
@@ -600,7 +600,7 @@ $env:PORT                     # API server port (default: 3456)
 
 ```powershell
 # Setup
-cd C:\QUESTION-PIPELINE
+cd .
 npm install
 npx tsc --noEmit                     # Verify compilation
 
