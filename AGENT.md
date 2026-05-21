@@ -97,6 +97,9 @@ C:\QUESTION-PIPELINE\
                                 Returns EnhancedOcrResult with structuredAnnotation and bboxAnnotation fields.
                                 Automatically enabled in process-pdf.ts (--use-enhanced-ocr / -e).
 
+      # ⚠️ FREE-TIER NOTE: Providers/models/limits change frequently.
+      # Update structurer.ts (models + priority), rate-limiter.ts (RPM limits),
+      # and test-models.ts (health checks) when something breaks.
       structurer.ts        Single-provider + distributedExtract(). Priority: NVIDIA > LongCat > Poolside > Vanchin > Gemini > Cerebras.
                             For >12 pages: splits into overlapping 15-page chunks (5-page overlap), assigns providers round-robin in
                             parallel, retries failed chunks with next provider. Results merged + deduplicated by merger.ts.

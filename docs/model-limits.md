@@ -1,3 +1,5 @@
+> **⚠️ Free-tier limits change frequently.** These were accurate at the time of writing. Always cross-check against each provider's current free-tier page. The pipeline architecture is provider-agnostic — update the limits in `src/utils/rate-limiter.ts` and the models/endpoints in `src/extractors/structurer.ts` when things change.
+
 ## CEREBRAS
 
 **Limits – Model Quotas & Rate Limits**  

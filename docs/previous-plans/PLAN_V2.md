@@ -1633,7 +1633,6 @@ When new exam papers release each year:
 - **Cerebras API**: https://inference.cerebras.ai
 - **Kaggle JEE Dataset**: https://kaggle.com/datasets/jeemain-pyq
 - **Plan location**: `C:\QUESTION-PIPELINE\PLAN.md`
-- **Rankify project**: `E:\naman\Documents\Cursor AI\Rankify`
 
 ---
 

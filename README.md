@@ -554,6 +554,8 @@ Subject files are written **FIRST** with question numbers reset to 1-N within ea
 
 ## AI Provider System
 
+> **⚠️ Living document — free-tier models change frequently.** This pipeline is built on free-tier AI providers. Model names, rate limits, and availability change over time. The ranking, priorities, and strategies below reflect the current landscape. When a provider drops or changes its free tier, use AI agentic coding tools to update provider configs in `src/extractors/structurer.ts`, `src/utils/rate-limiter.ts`, and `tests/` — the architecture stays the same, only the endpoints and limits shift.
+
 ### Provider Ranking (by extraction reliability)
 
 ```
@@ -1147,6 +1149,8 @@ These situations trigger a halt and explicit user notification:
 
 ## Model Limits & Rate Limiting
 
+> **⚠️ Rate limits are set by providers and change without notice.** The limits below were current at the time of writing. If you hit 429 errors, check each provider's free-tier page. Update `src/utils/rate-limiter.ts` with the new values — the queuing and backoff logic stays solid.
+
 ### Per-Provider Rate Limits
 
 | Provider | Model | RPM | Context | Daily Free | Notes |
@@ -1262,7 +1266,7 @@ All 9 phases are complete with zero TypeScript compilation errors across 32 sour
 6. **Difficulty = null from AI** — human assigns via rubric, never guessed by AI
 7. **Checksum = SHA-256 before adding checksum field** — self-verifying files
 8. **Human review = accuracy guarantee** — AI achieves 80-95%, validation adds 5%, human catches the rest
-9. **Free tier only** — all providers have free tiers, no paid API required
+9. **Free tier only** — all providers have free tiers, no paid API required. The entire strategy (model selection, priority ranking, rate limits) is built around the free-tier landscape. When providers change their offerings, update the configs — the pipeline architecture is designed to absorb these changes with minimal effort.
 11. **No Docker, no database** — JSON files ARE the database. Portable, inspectable, git-able
 12. **Subject files written FIRST** — `paper.json` is secondary merge, not primary
 13. **Tombstone IDs** — removed IDs never reused; external references stay valid
@@ -1333,4 +1337,4 @@ console.log(expected === actual ? 'ORIGINAL' : 'TAMPERED');
 "
 ```
 
-> **Question-Pipeline** — From PDF to structured dataset, with honest errors and zero fabrication.
+> **Question-Pipeline** — From PDF to structured dataset. Built for anyone, on free-tier AI, meant to evolve. When providers change, use AI agentic coding to update configs — the architecture stays.
