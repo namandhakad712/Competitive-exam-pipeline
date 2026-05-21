@@ -1,3 +1,4 @@
+import { request as httpsRequest } from "https";
 import { logger } from "../utils/logger.js";
 import { RateLimiter } from "../utils/rate-limiter.js";
 import type { PageContent, PartialQuestion, Exam, Passage } from "../types.js";
@@ -12,6 +13,7 @@ const GEMINI_API = "https://generativelanguage.googleapis.com/v1beta/models/gemi
 const LONGCAT_API = "https://api.longcat.chat/openai/v1/chat/completions";
 const POOLSIDE_API = "https://inference.poolside.ai/v1/chat/completions";
 const VANCHIN_API = "https://vanchin.streamlake.ai/api/gateway/v1/endpoints/chat/completions";
+const ZAI_API = "https://api.z.ai/api/paas/v4/chat/completions";
 
 // ---- API keys ----
 const NVIDIA_KEY = process.env.NVIDIA_API_KEY ?? "";
@@ -20,6 +22,7 @@ const GEMINI_KEY = process.env.GEMINI_API_KEY ?? "";
 const LONGCAT_KEY = process.env.LONGCAT_API_KEY ?? "";
 const POOLSIDE_KEY = process.env.POOLSIDE_API_KEY ?? "";
 const VANCHIN_KEY = process.env.VC_API_KEY ?? "";
+const ZAI_KEY = process.env.ZAI_API_KEY ?? "";
 
 // ---- Rate limiters (matching real free tier caps) ----
 const nvidiaLimiter = new RateLimiter({ maxRequests: 40, windowMs: 60_000 });
@@ -28,6 +31,7 @@ const geminiLimiter = new RateLimiter({ maxRequests: 15, windowMs: 60_000 });
 const longcatLimiter = new RateLimiter({ maxRequests: 30, windowMs: 60_000 });
 const poolsideLimiter = new RateLimiter({ maxRequests: 30, windowMs: 60_000 });
 const vanchinLimiter = new RateLimiter({ maxRequests: 20, windowMs: 60_000 });
+const zaiLimiter = new RateLimiter({ maxRequests: 30, windowMs: 60_000 });
 
 interface ExtractionResult {
   questions: PartialQuestion[];
@@ -386,6 +390,51 @@ async function callCerebras(prompt: string, systemPrompt: string): Promise<strin
   });
 }
 
+function httpsPost(url: string, body: string, headers: Record<string, string>): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const req = httpsRequest(
+      { hostname: u.hostname, port: 443, path: u.pathname, method: "POST", headers, timeout: 300000 },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk: Buffer) => (data += chunk.toString()));
+        res.on("end", () => {
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) resolve(data);
+          else reject(new Error(`Z.AI API ${res.statusCode}: ${data.slice(0, 200)}`));
+        });
+      },
+    );
+    req.on("error", reject);
+    req.on("timeout", () => { req.destroy(); reject(new Error("Z.AI API timeout")); });
+    req.write(body);
+    req.end();
+  });
+}
+
+async function callZai(prompt: string, systemPrompt: string): Promise<string> {
+  return zaiLimiter.call(async () => {
+    const body = JSON.stringify({
+      model: "glm-4.7-flash",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.1,
+      max_tokens: 128000,
+      thinking: { type: "disabled" },
+    });
+
+    const raw = await httpsPost(
+      ZAI_API,
+      body,
+      { "Content-Type": "application/json", Authorization: `Bearer ${ZAI_KEY}` },
+    );
+
+    const data = JSON.parse(raw) as { choices: Array<{ message: { content: string } }> };
+    return data.choices?.[0]?.message?.content ?? "";
+  });
+}
+
 // ===================== Main entry point =====================
 
 export async function extractQuestions(
@@ -423,8 +472,8 @@ export async function extractQuestions(
 
   throw new Error(
     "No AI provider succeeded. Set at least one of: NVIDIA_API_KEY (40 RPM, recommended), " +
-    "LONGCAT_API_KEY (256K output, 50M tokens), POOLSIDE_API_KEY, VC_API_KEY (Vanchin), " +
-    "GEMINI_API_KEY, CEREBRAS_API_KEY."
+    "ZAI_API_KEY (GLM-4.7-Flash, free, 128K output), LONGCAT_API_KEY (256K output, 50M tokens), " +
+    "POOLSIDE_API_KEY, VC_API_KEY (Vanchin), GEMINI_API_KEY, CEREBRAS_API_KEY."
   );
 }
 
@@ -437,7 +486,14 @@ function getDefaultProviders(): Provider[] {
       call: (p, s) => callNvidia(p, s),
       supportsLarge: true,
     },
-    // 2 — LongCat Flash Lite: 30 RPM, 256K max output, 50M free tokens/day
+    // 2 — Z.AI GLM-4.7-Flash: 30 RPM, 200K context, 128K output, free tier
+    {
+      name: "Z.AI GLM-4.7-Flash",
+      key: ZAI_KEY,
+      call: (p, s) => callZai(p, s),
+      supportsLarge: true,
+    },
+    // 3 — LongCat Flash Lite: 30 RPM, 256K max output, 50M free tokens/day
     // Best for massive 180-question papers needing large output
     {
       name: "LongCat Flash Lite",
@@ -445,28 +501,28 @@ function getDefaultProviders(): Provider[] {
       call: (p, s) => callLongcat(p, s),
       supportsLarge: true,
     },
-    // 3 — Poolside Laguna M.1: 30 RPM, 131K context, free preview
+    // 4 — Poolside Laguna M.1: 30 RPM, 131K context, free preview
     {
       name: "Poolside",
       key: POOLSIDE_KEY,
       call: (p, s) => callPoolside(p, s),
       supportsLarge: true,
     },
-    // 4 — Vanchin KAT-Coder: 20 RPM, 2M TPM
+    // 5 — Vanchin KAT-Coder: 20 RPM, 2M TPM
     {
       name: "Vanchin KAT-Coder",
       key: VANCHIN_KEY,
       call: (p, s) => callVanchin(p, s),
       supportsLarge: true,
     },
-    // 5 — Gemini 3.1 Flash Lite: 15 RPM, 250K TPM, 500 RPD — stable fallback
+    // 6 — Gemini 3.1 Flash Lite: 15 RPM, 250K TPM, 500 RPD — stable fallback
     {
       name: "Gemini 3.1 Flash Lite",
       key: GEMINI_KEY,
       call: (p, s) => callGemini(p, s),
       supportsLarge: true,
     },
-    // 6 — Cerebras: 5 RPM, 30K TPM — last resort, very rate-limited
+    // 7 — Cerebras: 5 RPM, 30K TPM — last resort, very rate-limited
     // Now supports small chunks in distributed mode
     {
       name: "Cerebras",
@@ -484,45 +540,45 @@ function getDefaultProviders(): Provider[] {
 async function detectAnswerKeyPages(pages: PageContent[], skipConfirmation = false): Promise<{ pages: PageContent[]; inlineAnswers: boolean }> {
   const answerKeyPages: PageContent[] = [];
   let inlineAnswers = false;
-  
+
   // Check last 10 pages for answer key patterns
   const lastPages = pages.slice(-Math.min(10, pages.length));
-  
+
   for (const page of lastPages) {
     const text = page.markdown.toLowerCase();
-    
+
     // Count answer key indicators
     let score = 0;
-    
+
     // Strong indicators
     if (/answer\s*key/i.test(text)) score += 5;
     if (/\|\s*q\s*\|\s*ans\s*\|/i.test(text)) score += 5; // table format
     if (/question\s*no/i.test(text)) score += 3;
-    
+
     // Count answer patterns (many answers = likely answer key)
     const answerPatterns = [
       /\d+\s*[:\-\)]\s*[1-4abcd]/gi,  // "1: 2" or "1) A"
       /\d+\s*\(\s*[1-4]\s*\)/gi,       // "1(2)" NTA style
       /\d+\s*[-–]\s*[A-Da-d]/gi,       // "1-A" format
     ];
-    
+
     let answerCount = 0;
     for (const pattern of answerPatterns) {
       const matches = text.match(pattern);
       if (matches) answerCount += matches.length;
     }
-    
+
     // If page has 20+ answers, likely answer key
     if (answerCount >= 20) score += 4;
     else if (answerCount >= 10) score += 2;
-    
+
     // Threshold: score >= 5 means answer key page
     if (score >= 5) {
       answerKeyPages.push(page);
       logger.info(`Answer key detected on page ${page.page} (score: ${score}, answers: ${answerCount})`);
     }
   }
-  
+
   // Fallback: if last-10-pages detection failed, check full document for inline answer markers
   if (answerKeyPages.length === 0) {
     const fullText = pages.map(p => p.markdown).join("\n\n");
@@ -537,30 +593,30 @@ async function detectAnswerKeyPages(pages: PageContent[], skipConfirmation = fal
     logger.info(`\n🔍 Answer key auto-detected on ${answerKeyPages.length} page(s): [${answerKeyPages.map(p => p.page).join(', ')}]`);
     logger.info(`📄 Total pages in PDF: ${pages.length}`);
     logger.info(`❓ Does this PDF have an answer key at the end? (Y/n)`);
-    
+
     // Check if running in non-interactive mode (CI/automated)
     if (process.env.CI === 'true' || process.env.NON_INTERACTIVE === 'true') {
       logger.info(`⚙️  Non-interactive mode: Using auto-detected answer key`);
       return { pages: answerKeyPages, inlineAnswers };
     }
-    
+
     try {
       // Dynamic import to avoid issues if not installed
       const readlineSync = await import('readline-sync');
       const response = readlineSync.default.question('> ').trim().toLowerCase();
-      
+
       if (response === 'n' || response === 'no') {
         logger.warn(`❌ User confirmed: NO answer key. Answers will be empty.`);
         return { pages: [], inlineAnswers: false };
       }
-      
+
       logger.info(`✅ User confirmed: Answer key will be used`);
     } catch (err) {
       logger.warn(`⚠️  Interactive prompt failed: ${err instanceof Error ? err.message : String(err)}`);
       logger.info(`⚙️  Falling back to auto-detection`);
     }
   }
-  
+
   return { pages: answerKeyPages, inlineAnswers };
 }
 
@@ -589,7 +645,7 @@ export async function distributedExtract(
 
   // STEP 1: Detect answer key pages BEFORE chunking
   const { pages: answerKeyPages, inlineAnswers } = await detectAnswerKeyPages(pages, skipAnswerKeyPrompt);
-  
+
   if (answerKeyPages.length > 0) {
     logger.info(`✅ Answer key detected: ${answerKeyPages.length} page(s) [${answerKeyPages.map(p => p.page).join(', ')}]`);
     logger.info(`📋 Strategy: Appending answer key to ALL chunks for 99% accuracy`);
@@ -602,7 +658,7 @@ export async function distributedExtract(
   // STEP 2: Split into overlapping chunks
   const chunks = splitIntoChunks(pages, 15, 5);
   logger.info(`Distributed: ${pages.length} pages → ${chunks.length} overlapping chunks`);
-  
+
   // STEP 3: Append answer key pages to ALL chunks
   if (answerKeyPages.length > 0) {
     for (const chunk of chunks) {
@@ -677,42 +733,14 @@ export async function distributedExtract(
   logger.info(`Distributed: ${chunks.length} chunks → ${merged.questions.length} total questions`);
 
   const normalized = normalizeQuestions(merged.questions);
+  const withSections = assignSections(normalized);
 
   return {
-    questions: normalized,
+    questions: withSections,
     passages: merged.passages,
     rawResponse: JSON.stringify(chunkResults.map(r => `${r.chunkIndex}:${r.questions.length}q`)),
     answerKeyFound: merged.answerKeyFound,
   };
 }
 
-const LETTER_TO_INDEX: Record<string, string> = { a:"0", b:"1", c:"2", d:"3", e:"4" };
 
-function normalizeQuestions(questions: PartialQuestion[]): PartialQuestion[] {
-  return questions.map(q => {
-    // Coerce number to integer
-    const number = typeof q.number === "string" ? parseInt(q.number, 10) : q.number;
-
-    // Normalize answer format
-    let answer = q.answer ?? "";
-    if (answer && answer !== "") {
-      const trimmed = answer.trim().toLowerCase();
-      // Letter answer → index
-      if (LETTER_TO_INDEX[trimmed] !== undefined) {
-        answer = LETTER_TO_INDEX[trimmed];
-      }
-      // 1-based numeric → 0-based (for 4-option MCQs)
-      if (["1", "2", "3", "4"].includes(trimmed) && q.options && q.options.length === 4) {
-        answer = String(parseInt(trimmed, 10) - 1);
-      }
-    }
-
-    // Assertion-reason: strip options
-    let options = q.options;
-    if (q.type === "assertion-reason") {
-      options = null;
-    }
-
-    return { ...q, number, answer, options };
-  });
-}

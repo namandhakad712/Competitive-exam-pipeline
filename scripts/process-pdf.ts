@@ -4,8 +4,10 @@ import { join, basename, extname, dirname } from "path";
 import { readFile, writeFile } from "fs/promises";
 import { existsSync } from "fs";
 import { parseArgs } from "util";
+
+process.loadEnvFile();
 import { logger } from "../src/utils/logger.js";
-import { ocrPdf, enhancedOcrPdf } from "../src/extractors/ocr-stage.js";
+import { ocrPdf, enhancedOcrPdf, ocrPdfWithProvider } from "../src/extractors/ocr-stage.js";
 import {
   extractQuestions,
   distributedExtract,
@@ -327,6 +329,7 @@ export async function main(
       "use-consensus": { type: "boolean", short: "c" },
       "use-enhanced-ocr": { type: "boolean", short: "e" },
       "skip-answer-key-prompt": { type: "boolean" },
+      ocr: { type: "string", default: "mistral" },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -342,6 +345,7 @@ export async function main(
   if (values.help || !values.input) {
     console.log(`
 Usage: npx tsx scripts/process-pdf.ts --input <pdf> [options]
+       npm run interactive              # Launch interactive TUI wizard
 
 Required:
   --input, -i <path>       Path to question paper PDF
@@ -353,13 +357,36 @@ Options:
   --shift <shift>          Override shift detection
   --force, -f              Reprocess even if checkpoint exists
   --use-consensus, -c      Use multi-provider consensus extraction (3 providers in parallel)
-  --use-enhanced-ocr, -e   Use Mistral structured annotations (single-call extraction, default: true)
+  --use-enhanced-ocr, -e   Use Mistral structured annotations (single-call, default: true)
   --skip-answer-key-prompt Skip interactive answer key confirmation (auto-accept detection)
+  --ocr <provider>         OCR engine: mistral (default) or mineru
   --help, -h               Show this help
 
+OCR Engines:
+  mistral  (default)        Mistral AI OCR — good for clean PDFs, structured annotations
+  mineru                   MinerU OCR — LaTeX formulas, HTML tables, image extraction
+                           Requires MINERU_API_KEY for Precision API (falls back to Agent API)
+                           Recommended for NEET, scanned docs, formula-heavy papers
+
 Environment Variables:
+  MISTRAL_API_KEY=         Required for Mistral AI OCR
+  MINERU_API_KEY=          MinerU token for Precision API (optional; Agent API fallback)
+  NVIDIA_API_KEY=          Primary AI extraction provider (recommended)
+  ZAI_API_KEY=             Free fallback extraction provider
+  LONGCAT_API_KEY=         Long-context extraction (256K output)
+  POOLSIDE_API_KEY=        Unlimited free extraction
+  GEMINI_API_KEY=          Gemini 3.1 Flash Lite (500 RPD)
+  CEREBRAS_API_KEY=        Cerebras fallback provider
+  VC_API_KEY=              Vanchin KAT-Coder-Air-V1
   CI=true                  Non-interactive mode (skips all prompts)
   NON_INTERACTIVE=true     Non-interactive mode (skips all prompts)
+
+Interactive Mode:
+  Run without --input to launch the interactive TUI wizard:
+    npm run interactive
+
+  The TUI guides you through OCR engine selection, environment checks,
+  PDF file selection, and real-time processing with live status display.
 
 If --exam/--year/--shift are omitted, they are inferred from the filename.
 
@@ -421,6 +448,7 @@ Answer Key Detection:
   const useConsensus = values["use-consensus"] ?? false;
   const useEnhancedOcr = values["use-enhanced-ocr"] ?? true;
   const skipAnswerKeyPrompt = values["skip-answer-key-prompt"] ?? false;
+  const ocrProvider = (values.ocr as string) ?? "mistral";
 
   // Check checkpoint — skip if already processed (unless --force)
   if (!values.force) {
@@ -469,19 +497,23 @@ Answer Key Detection:
         );
       } else {
         logger.warn("  Cache miss, re-running OCR");
-        ocrOutput = useEnhancedOcr
-          ? await enhancedOcrPdf(pdfPath)
-          : await ocrPdf(pdfPath);
+        ocrOutput = ocrProvider === "mineru"
+          ? await ocrPdfWithProvider(pdfPath, "mineru")
+          : useEnhancedOcr
+            ? await enhancedOcrPdf(pdfPath)
+            : await ocrPdf(pdfPath);
         await saveStageCache(cacheKey, "ocr", ocrOutput);
         await updateStage(exam, year, shift, "ocr", "completed");
       }
     } else {
       logger.info(
-        `Step 1/4: OCR processing (${useEnhancedOcr ? "enhanced" : "standard"})...`,
+        `Step 1/4: OCR processing (${ocrProvider === "mineru" ? "mineru" : useEnhancedOcr ? "enhanced" : "standard"})...`,
       );
-      ocrOutput = useEnhancedOcr
-        ? await enhancedOcrPdf(pdfPath)
-        : await ocrPdf(pdfPath);
+      ocrOutput = ocrProvider === "mineru"
+        ? await ocrPdfWithProvider(pdfPath, "mineru")
+        : useEnhancedOcr
+          ? await enhancedOcrPdf(pdfPath)
+          : await ocrPdf(pdfPath);
       logger.info(
         `  ${ocrOutput.pages.length} pages, ${ocrOutput.pages.reduce((s, p) => s + p.markdown.length, 0)} chars`,
       );
@@ -786,9 +818,10 @@ async function runExtraction(
     }
 
     // Fall back to consensus extraction
-    const availableProviders: ProviderName[] = ["poolside", "longcat-lite", "nvidia-qwen"];
+    const availableProviders: ProviderName[] = ["poolside", "zai", "longcat-lite", "nvidia-qwen"];
     const providerKeys: Record<string, string | undefined> = {
       poolside: process.env.POOLSIDE_API_KEY,
+      zai: process.env.ZAI_API_KEY,
       "longcat-lite": process.env.LONGCAT_API_KEY,
       "nvidia-qwen": process.env.NVIDIA_API_KEY,
     };

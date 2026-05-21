@@ -26,7 +26,7 @@
 ## 2. First Contact — What to Do When User Gives API Keys
 
 ```powershell
-cd .
+cd C:\QUESTION-PIPELINE
 $env:MISTRAL_API_KEY = "sk-..."
 $env:NVIDIA_API_KEY = "nvapi-..."
 $env:LONGCAT_API_KEY = "sk-..."
@@ -44,19 +44,13 @@ Then ask: *"Which exam and shift? e.g. jeemain 2025 22jan-shift1"*
 ## 3. Directory — Every File by Role
 
 ```
-.\
-  AGENT.md              THIS FILE
-  prompts/
-    one-shot-prompt.md    For AI chat apps (PDF only, no diagrams)
-    AI-START-COMMAND.md   Session start instructions
-  docs/
-    getting-started.md    Quick-start for humans
-    human-intervention.md When to pause and ask
-    model-limits.md       Provider rate limits
-    previous-plans/       Historical design docs
+C:\QUESTION-PIPELINE\
+  plan.md                 1722-line design doc (read for full context)
+  AGENT.md                THIS FILE
   package.json            scripts: scrape, batch, process-pdf, review, signoff, verify, stats,
                            status, api, export, test-models, rebuild-index, test
   tsconfig.json
+  input/                  Drop PDFs here for manual processing
   .checkpoints.json       Auto-tracked — which shifts have been processed
 
   src/
@@ -101,20 +95,17 @@ Then ask: *"Which exam and shift? e.g. jeemain 2025 22jan-shift1"*
       # Update structurer.ts (models + priority), rate-limiter.ts (RPM limits),
       # and test-models.ts (health checks) when something breaks.
       structurer.ts        Single-provider + distributedExtract(). Priority: NVIDIA > LongCat > Poolside > Vanchin > Gemini > Cerebras.
-                             For >12 pages: splits into overlapping 15-page chunks (5-page overlap), assigns providers round-robin in
-                             parallel, retries failed chunks with next provider. Results merged + deduplicated by merger.ts.
-                             Answer key detection: scans last 10 pages for key patterns → appends to all chunks.
-                             Fallback: if no key pages found, scans full doc for inline answers ([Ans: 2], etc.).
+                            For >12 pages: splits into overlapping 15-page chunks (5-page overlap), assigns providers round-robin in
+                            parallel, retries failed chunks with next provider. Results merged + deduplicated by merger.ts.
       chunker.ts           splitIntoChunks(pages, 15, 5) → overlapping page groups. Guarantees no question spans across chunks.
       merger.ts            mergeChunks() — dedup by Q number. Prefers: non-empty answer > longer options > earlier chunk.
-                             textSimilarity() uses Mistral embeddings API via src/utils/embeddings.ts,
-                             falls back to Jaccard word-set similarity when API unavailable.
+                            textSimilarity() uses Mistral embeddings API via src/utils/embeddings.ts,
+                            falls back to Jaccard word-set similarity when API unavailable.
       consensus-extractor.ts Multi-provider consensus extraction.
-                             extractWithConsensus(pages, exam, providers) runs 3 providers in parallel,
-                             majority-vote per field, builds ConsensusResult with confidence scores
-                             (high ≥0.8, medium ≥0.5, low) and conflict detection.
-                             distributedConsensusExtract() for >12-page PDFs.
-                             Answer key detection: same two-strategy approach (key pages at end → inline fallback).
+                            extractWithConsensus(pages, exam, providers) runs 3 providers in parallel,
+                            majority-vote per field, builds ConsensusResult with confidence scores
+                            (high ≥0.8, medium ≥0.5, low) and conflict detection.
+                            distributedConsensusExtract() for >12-page PDFs.
       progressive-review.ts Chunk-by-chunk human-in-loop review.
                             progressiveExtract() shows sample question after each chunk,
                             prompts [c]ontinue/[r]etry/[a]bort. Falls back to non-interactive
@@ -277,7 +268,7 @@ This is the core loop. You do ALL of these steps. User only provides API keys an
 ### Step 1: Install & Verify
 
 ```powershell
-cd .
+cd C:\QUESTION-PIPELINE
 npm install
 # Verify tsconfig compiles:
 npx tsc --noEmit
@@ -572,7 +563,7 @@ npx tsx src/cross-validate/cross-validator.ts --a extracted-cerebras.json --b ex
    If `textHi` is null, that's fine — some NEET papers are English-only.
 3. **Kaggle import datasets** — confidence=low. These need human review even more than AI-extracted.
 4. **Gateoverflow JEE Main 2023** — Mirrors only. Some shifts may be missing.
-5. **Assertion-reason options** — NEVER stored in JSON. Generated on-the-fly by display layer.
+5. **Assertion-reason options** — NEVER stored in JSON. Generated on-the-fly by adapter or display.
 6. **Match-columns** — Stored as MCQ with 4 pairing options. This matches JEE Advanced format exactly.
 
 ---
@@ -818,7 +809,7 @@ All 9 phases compile. Zero TypeScript errors. 32 source files.
    present each question yourself with accept/edit/skip/flag options.
 7. **Cross-validate when possible.** Running two models (Cerebras + Gemini) and only showing
    diffs to user saves ~80% review time.
-8. **When stuck:** Read docs/previous-plans/PLAN.md (1722 lines, full design). Read the specific source file.
+8. **When stuck:** Read plan.md (1722 lines, full design). Read the specific source file.
    Fix the issue, don't restart from scratch.
 9. **Don't install sharp.** It requires native build tools. Diagram cropping falls back gracefully.
 10. **Keep data lowercase.** Everywhere. No exceptions.

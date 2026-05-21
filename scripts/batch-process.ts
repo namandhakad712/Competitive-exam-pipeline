@@ -19,10 +19,9 @@ interface BatchConfig {
   marksUnanswered: number;
   sections: Record<string, SectionConfig>;
   skipReview?: boolean;
-  useClassDir?: boolean;
 }
 
-const EXAM_DEFAULTS: Record<string, Partial<BatchConfig>> = {
+const EXAM_DEFAULTS: Record<Exam, Partial<BatchConfig>> = {
   jeemain: {
     subjects: ["physics", "chemistry", "mathematics"],
     duration: 180,
@@ -65,17 +64,6 @@ const EXAM_DEFAULTS: Record<string, Partial<BatchConfig>> = {
     marksUnanswered: 0,
     sections: {
       a: { label: "questions", total: 0, required: 0, mandatory: true },
-    },
-  },
-  "__default__": {
-    subjects: ["physics", "chemistry", "mathematics"],
-    duration: 180,
-    marksCorrect: 4,
-    marksIncorrect: -1,
-    marksUnanswered: 0,
-    useClassDir: false,
-    sections: {
-      a: { label: "section a", total: 0, required: 0, mandatory: true },
     },
   },
 };

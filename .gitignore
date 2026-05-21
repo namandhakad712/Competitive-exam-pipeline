@@ -1,27 +1,29 @@
-# Dependencies
-node_modules/
+ha# Nuxt dev/build outputs
+.output
+.data
+.nuxt
+.nitro
+.cache
+dist
+.vscode
+dist-*/
+**/jiti/
+**/node-compile-cache/
 
-# Build outputs
-dist/
-.nuxt/
 
-# IDE
-.vscode/
-.fleet/
-.idea/
+# Node dependencies
+node_modules
 
 # Logs
-logs/
+logs
 *.log
 
-# OS
+# Misc
 .DS_Store
-Thumbs.db
+.fleet
+.idea
 
-# Environment
+# Local env files
 .env
 .env.*
 !.env.example
-
-# Processing state
-.checkpoints.json

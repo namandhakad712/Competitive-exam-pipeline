@@ -50,6 +50,12 @@ const PROVIDERS: Provider[] = [
     url: "https://api.cerebras.ai/v1/chat/completions",
     body: { model: "gpt-oss-120b", messages: [{ role: "user", content: "hi" }], max_tokens: 1 },
   },
+  {
+    name: "Z.AI GLM-4.7-Flash",
+    key: process.env.ZAI_API_KEY ?? "", keyName: "ZAI_API_KEY",
+    url: "https://api.z.ai/api/paas/v4/chat/completions",
+    body: { model: "glm-4.7-flash", messages: [{ role: "user", content: "hi" }], max_tokens: 5, thinking: { type: "disabled" } },
+  },
 ];
 
 async function test(p: Provider): Promise<string> {

@@ -9,6 +9,79 @@ import type {
   MistralImage,
 } from "../types.js";
 
+const NVIDIA_API = "https://integrate.api.nvidia.com/v1/chat/completions";
+const NVIDIA_KEY = process.env.NVIDIA_API_KEY ?? "";
+
+interface BboxImageEntry {
+  imageId: string;
+  type: string;
+  description: string | null;
+}
+
+interface BboxImageEntry {
+  imageId: string;
+  type: string;
+  description: string | null;
+}
+
+function extractOptionsFromDescription(description: string): string[] | null {
+  const lines = description.split("\n").map(l => l.trim()).filter(Boolean);
+  const merged = lines.join(" ");
+  const optionPattern = /(?:^|[;.])\s*([A-D])[.)]\s*([^;.A]*(?:[A-Z][a-z]+[^;.A]*)*?)(?=\s*[;.]\s*[A-D][.)]\s|$)/g;
+  const options: string[] = [];
+  let match;
+  while ((match = optionPattern.exec(merged)) !== null) {
+    const opt = match[2].trim();
+    if (opt.length > 1) options.push(opt);
+  }
+  if (options.length === 4) return options;
+  const altPattern = /Option\s+([A-D])\s*[:.)]\s*([^;.]+)/gi;
+  const altOptions: string[] = [];
+  let altMatch;
+  while ((altMatch = altPattern.exec(description)) !== null) {
+    altOptions.push(altMatch[2].trim());
+  }
+  if (altOptions.length === 4) return altOptions;
+  return null;
+}
+
+async function extractDiagramOptionsViaLLM(description: string): Promise<string[] | null> {
+  if (!NVIDIA_KEY) return null;
+  try {
+    const response = await fetch(NVIDIA_API, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${NVIDIA_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "qwen/qwen3-coder-480b-a35b-instruct",
+        messages: [
+          {
+            role: "system",
+            content: "Extract exactly 4 MCQ options (A, B, C, D) from the image description. Return ONLY a JSON array of 4 strings like [\"option text A\", \"option text B\", \"option text C\", \"option text D\"]. If cannot find exactly 4 options, return [].",
+          },
+          {
+            role: "user",
+            content: `Image description: ${description}\n\nExtract the 4 MCQ options:`,
+          },
+        ],
+        temperature: 0.1,
+        max_tokens: 1000,
+      }),
+    });
+    if (!response.ok) return null;
+    const data = (await response.json()) as { choices?: Array<{ message: { content: string } }> };
+    const content = data.choices?.[0]?.message?.content ?? "";
+    const cleaned = content.replace(/```(?:json)?/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+    if (Array.isArray(parsed) && parsed.length === 4) return parsed.map(String);
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 interface CacheDiagramsInput {
   questions: PartialQuestion[];
   images: Map<number, string>;
@@ -119,7 +192,7 @@ async function cacheDiagramsFromMistral(
   let totalSaved = 0;
 
   // Use bbox annotation to link images to questions
-  const bboxImageMap = new Map<number, Array<{ imageId: string; type: string; description: string | null }>>();
+  const bboxImageMap = new Map<number, BboxImageEntry[]>();
   if (ocrResult.bboxAnnotation) {
     const ba = ocrResult.bboxAnnotation as { images?: Array<{
       image_id: string;
@@ -181,7 +254,10 @@ async function cacheDiagramsFromMistral(
     } else {
       // Fallback: extract image refs from question text
       const imageRefs = extractImageRefs(q.text);
-      if (imageRefs.length === 0) continue;
+      if (imageRefs.length === 0) {
+        logger.warn(`Diagram: Q${q.number} (${q.subject}) flagged hasDiagram but no image refs in text and no bbox mapping — not cached`);
+        continue;
+      }
 
       for (const ref of imageRefs) {
         const image = findImageById(mistralPages, ref.filename);
@@ -216,6 +292,30 @@ async function cacheDiagramsFromMistral(
     if (diagramList.length > 0) {
       q.diagrams = diagramList;
     }
+  }
+
+  let optionsExtracted = 0;
+  for (const q of questions) {
+    if (q.hasDiagram && q.options && q.options.length === 0 && q.number) {
+      const bboxImages = bboxImageMap.get(q.number);
+      if (bboxImages && bboxImages.length > 0) {
+        const desc = bboxImages.map(b => b.description).filter(Boolean).join(" ");
+        if (desc) {
+          let opts = extractOptionsFromDescription(desc);
+          if (!opts) {
+            opts = await extractDiagramOptionsViaLLM(desc);
+          }
+          if (opts && opts.length === 4) {
+            q.options = opts;
+            optionsExtracted++;
+          }
+        }
+      }
+    }
+  }
+
+  if (optionsExtracted > 0) {
+    logger.info(`Diagram options: ${optionsExtracted} question(s) had options extracted from annotations`);
   }
 
   logger.info(

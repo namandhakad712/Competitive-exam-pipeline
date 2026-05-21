@@ -1,11 +1,13 @@
 import { readFile } from "fs/promises";
 import { logger } from "../utils/logger.js";
 import { RateLimiter } from "../utils/rate-limiter.js";
+import { callMineruOcr } from "./mineru-ocr.js";
 import type {
   OcrResult,
   EnhancedOcrResult,
   PageContent,
   MistralOcrPage,
+  OcrProvider,
 } from "../types.js";
 
 const MISTRAL_API = "https://api.mistral.ai/v1/ocr";
@@ -54,6 +56,10 @@ function callMistralOcr(
             document_url: `data:application/pdf;base64,${pdfBase64}`,
           },
           include_image_base64: true,
+          table_format: "markdown",
+          extract_header: true,
+          extract_footer: true,
+          confidence_scores_granularity: "page",
         }),
       });
 
@@ -104,6 +110,10 @@ function callMistralOcrWithAnnotations(
               document_url: `data:application/pdf;base64,${pdfBase64}`,
             },
             include_image_base64: true,
+            table_format: "markdown",
+            extract_header: true,
+            extract_footer: true,
+            confidence_scores_granularity: "page",
 
             // Document annotation: extract questions as structured JSON
             document_annotation_format: {
@@ -392,4 +402,14 @@ export async function enhancedOcrPdf(
     answerKeyFoundFromAnnotation,
     answerKeyFoundFromBbox,
   };
+}
+
+export async function ocrPdfWithProvider(
+  filePath: string,
+  provider: OcrProvider,
+): Promise<OcrResult> {
+  if (provider === "mineru") {
+    return callMineruOcr(filePath);
+  }
+  return ocrPdf(filePath);
 }

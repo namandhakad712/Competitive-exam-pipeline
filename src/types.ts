@@ -259,6 +259,99 @@ export interface ApiStats {
 }
 
 // ---------------------------------------------------------------------------
+// MinerU types (PDF parsing via mineru.net)
+// ---------------------------------------------------------------------------
+export type OcrProvider = "mistral" | "mineru";
+
+export interface MineruAgentSubmitRequest {
+  url?: string;
+  file_name?: string;
+  language?: string;
+  enable_table?: boolean;
+  is_ocr?: boolean;
+  enable_formula?: boolean;
+  page_range?: string;
+}
+
+export interface MineruAgentSubmitResponse {
+  code: number;
+  msg: string;
+  data: {
+    task_id: string;
+    file_url?: string;
+  };
+}
+
+export interface MineruAgentResultResponse {
+  code: number;
+  msg: string;
+  data: {
+    task_id: string;
+    state: "waiting-file" | "uploading" | "pending" | "running" | "done" | "failed";
+    markdown_url?: string;
+    err_msg?: string;
+    err_code?: number;
+  };
+}
+
+export interface MineruBatchUploadRequest {
+  files: Array<{
+    name: string;
+    is_ocr?: boolean;
+    data_id?: string;
+    page_ranges?: string;
+  }>;
+  model_version?: "pipeline" | "vlm" | "MinerU-HTML";
+  language?: string;
+  enable_table?: boolean;
+  enable_formula?: boolean;
+  extra_formats?: string[];
+}
+
+export interface MineruBatchUploadResponse {
+  code: number;
+  msg: string;
+  data: {
+    batch_id: string;
+    file_urls: string[];
+  };
+}
+
+export interface MineruBatchResultResponse {
+  code: number;
+  msg: string;
+  data: {
+    batch_id: string;
+    extract_result: Array<{
+      file_name: string;
+      state: string;
+      full_zip_url?: string;
+      err_msg?: string;
+      data_id?: string;
+      extract_progress?: {
+        extracted_pages: number;
+        total_pages: number;
+        start_time: string;
+      };
+    }>;
+  };
+}
+
+export interface MineruContentItem {
+  type: "text" | "image" | "table" | "equation" | "chart" | "code" | "list" | "header" | "footer" | "page_number" | "aside_text" | "page_footnote";
+  text?: string;
+  text_level?: number;
+  img_path?: string;
+  image_caption?: string[];
+  image_footnote?: string[];
+  table_body?: string;
+  table_caption?: string[];
+  table_footnote?: string[];
+  bbox?: [number, number, number, number];
+  page_idx: number;
+}
+
+// ---------------------------------------------------------------------------
 // OCR / extraction types
 // ---------------------------------------------------------------------------
 export interface PageContent {
@@ -292,10 +385,30 @@ export interface MistralImage {
   image_base64: string;
 }
 
+export interface MistralTable {
+  id: string;
+  content: string;
+}
+
+export interface MistralConfidenceScores {
+  average_page_confidence_score: number;
+  minimum_page_confidence_score: number;
+  word_confidence_scores?: Array<{
+    word: string;
+    confidence: number;
+  }>;
+}
+
 export interface MistralOcrPage {
   index: number;
   markdown: string;
   images: MistralImage[];
+  tables?: MistralTable[];
+  header?: string | null;
+  footer?: string | null;
+  dimensions?: { dpi: number; height: number; width: number };
+  hyperlinks?: Array<{ text: string; url: string }>;
+  confidence_scores?: MistralConfidenceScores | null;
 }
 
 export interface EnhancedOcrResult {
@@ -318,7 +431,8 @@ export type ProviderName =
   | "longcat-lite"     // 50M tokens/day, 256K context
   | "longcat-chat"     // 500K tokens/day, 256K context
   | "nvidia-qwen"      // 2,400 RPD, 262K context
-  | "nvidia-mistral";  // 2,400 RPD, multimodal
+  | "nvidia-mistral"   // 2,400 RPD, multimodal
+  | "zai";             // Z.AI GLM-4.7, 200K context, 128K output, free tier
 
 export interface ConsensusCandidate {
   provider: ProviderName;

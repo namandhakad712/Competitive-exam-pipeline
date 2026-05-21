@@ -24,6 +24,7 @@
 ```
 
 > **Batch pipeline for exam question extraction and JSON dataset generation**  
+ 
 > Automatically downloads PDFs, performs OCR, extracts questions via multi-AI consensus, validates, and exports structured datasets.
 
 <p align="center">
@@ -102,6 +103,7 @@ Manual extraction doesn't scale. Pure AI extraction hallucinates. Question-Pipel
 | **Multi-Provider AI Extraction** | 6 AI providers ranked by reliability; runs top 3 in parallel for consensus |
 | **Zero Runtime Dependencies** | Pure Node.js built-ins (`fetch`, `http`, `crypto`, `fs`) — no Express, no MongoDB, no Docker |
 | **Mistral AI OCR** | High-accuracy PDF-to-markdown with embedded image extraction |
+| **MinerU OCR** | Dual-mode OCR (Agent + Precision APIs) — LaTeX formulas, HTML tables, image extraction, ZIP result parsing. Excels on complex NEET/JEE layouts |
 | **Multi-Provider Consensus** | Majority-vote per field across 3 parallel AI providers with confidence scoring |
 | **32 Automated Validations** | Per-type field checks, structural integrity, topic normalization, checksums |
 | **Auto-Repair** | Detects missing answers, merged options, count mismatches and re-extracts intelligently |
@@ -320,7 +322,7 @@ Add your own exam config in `src/types.ts` → add to the `ExamCode` type and de
 | **Module System** | ES Modules (`"type": "module"`) |
 | **Compiler** | `tsc` + `tsx` for direct execution |
 | **Testing** | Vitest 4.1.7 |
-| **OCR** | Mistral AI OCR API (`mistral-ocr-latest`) |
+| **OCR** | Mistral AI OCR API (`mistral-ocr-latest`) or MinerU OCR (Agent + Precision APIs) |
 | **AI Providers** | NVIDIA Qwen3 Coder 480B, LongCat Flash Lite, Poolside Laguna M.1, Vanchin KAT-Coder, Gemini 3.1 Flash Lite, Cerebras GPT-OSS-120B |
 | **Database** | JSON files on disk (no Docker, no SQL, no MongoDB) |
 | **Server** | Native `http` module (no Express/Fastify) |
@@ -380,12 +382,13 @@ C:\QUESTION-PIPELINE\
 │   │   └── kaggle-importer.ts  # Import existing Kaggle datasets
 │   │
 │   ├── extractors/             # Core extraction pipeline
-│   │   ├── ocr-stage.ts        # Mistral OCR (standard + enhanced)
+│   │   ├── ocr-stage.ts        # OCR router — Mistral + MinerU support
 │   │   ├── chunker.ts          # Split large PDFs into overlapping chunks
 │   │   ├── structurer.ts       # Single-provider AI extraction
 │   │   ├── consensus-extractor.ts  # Multi-provider consensus (3 in parallel)
 │   │   ├── merger.ts           # Merge overlapping chunk results
 │   │   ├── diagram-cacher.ts   # Decode/save diagram images from OCR
+│   │   ├── mineru-ocr.ts       # MinerU OCR (Agent + Precision APIs, ZIP extraction)
 │   │   ├── auto-repair.ts      # Auto-detect and fix extraction issues
 │   │   └── progressive-review.ts   # Chunk-by-chunk human-in-loop
 │   │
@@ -423,6 +426,7 @@ C:\QUESTION-PIPELINE\
 │       └── pdf-downloader.ts   # Download PDF with retry + validation
 │
 ├── scripts/                    # Executable scripts (via npm run)
+│   ├── interactive.ts          # Interactive TUI wizard (OCR select, env check, progress)
 │   ├── process-pdf.ts          # Main entry for manual PDF processing
 │   ├── batch-process.ts        # Process all PDFs in input/
 │   ├── test-models.ts          # Health check for all AI providers
@@ -644,7 +648,7 @@ When NOT detected: ALL answers set to empty string (anti-hallucination rule).
 
 - Node.js 18+ (for native `fetch`)
 - npm
-- At minimum: **Mistral AI API key** (for OCR)
+- At minimum: **Mistral AI API key** (for Mistral OCR) or **MinerU API key** (for MinerU OCR)
 
 ### 1. Clone & Install
 
@@ -659,7 +663,8 @@ npx tsc --noEmit      # Verify compilation — must pass with 0 errors
 Copy `.env.example` to `.env` and add your keys:
 
 ```env
-MISTRAL_API_KEY=sk-...           # Required for OCR
+MISTRAL_API_KEY=sk-...           # Required for Mistral OCR
+MINERU_API_KEY=eyJ...            # Token for MinerU Precision API (optional; Agent API fallback)
 NVIDIA_API_KEY=nvapi-...         # Optional — primary extraction
 LONGCAT_API_KEY=sk-...           # Optional — 50M tokens/day free
 POOLSIDE_API_KEY=...             # Optional — unlimited(preview) free
@@ -692,6 +697,9 @@ npm run test-models
 # Drop a PDF in input/ folder, then:
 npm run process-pdf -- --input "input/neet-2025-04may-s1.pdf"
 
+# With MinerU OCR (better for complex layouts, formulas, tables):
+npm run process-pdf -- --input "input/neet-2025-04may-s1.pdf" --ocr mineru
+
 # With multi-provider consensus (3 providers in parallel):
 npm run process-pdf -- --input "input/neet-2025-04may-s1.pdf" --use-consensus
 
@@ -703,6 +711,9 @@ npm run process-pdf -- --input "input/neet-2025-04may-s1.pdf" -c -e
 
 # PDF + separate answer key PDF (official NTA):
 npm run process-pdf -- --input "question.pdf" --answer-key "answer-key.pdf"
+
+# Interactive TUI wizard (no flags needed):
+npm run interactive
 ```
 
 ### All Commands
@@ -722,8 +733,10 @@ npm run batch -- --exam jeemain --year 2025 --shift 22jan-s1
 
 # ─── MANUAL PDF PROCESSING ──────────────────────────────────────────
 npm run process-pdf -- --input "input/paper.pdf"
+npm run process-pdf -- --input "input/paper.pdf" --ocr mineru
 npm run process-pdf -- --input "input/paper.pdf" --use-consensus
 npm run process-pdf -- --input "input/paper.pdf" -c -e
+npm run interactive              # Launch interactive TUI wizard
 
 # ─── INDIVIDUAL STAGES ──────────────────────────────────────────────
 npx tsx src/extractors/ocr-stage.ts --input data/jeemain/raw/file.pdf --output data/jeemain/ocr/
@@ -780,6 +793,43 @@ After processing, a checkpoint is recorded in `.checkpoints.json`. Running the s
 npm run process-pdf -- --input "input/paper.pdf" --force
 npm run status   # Shows what's been processed
 ```
+
+---
+
+## Interactive TUI Wizard
+
+The interactive TUI (`npm run interactive`) provides a guided, stylized terminal experience for the pipeline:
+
+### Features
+
+| Step | Feature | Description |
+|---|---|---|
+| **1** | **OCR Engine Selection** | Choose Mistral OCR or MinerU OCR via interactive menu with feature comparison |
+| **2** | **Environment Health Check** | Scans all 9 API keys, shows green/red status per provider, reports OCR/AI readiness |
+| **3** | **AI Provider Test** | Pings each configured provider with a real API call — spinner animation while testing, shows HTTP status result |
+| **4** | **Help Menu** | Type `?` at any prompt to open the help overlay — shows all CLI commands, OCR engine comparison, environment variables reference, PDF type legend, and about info |
+| **5** | **PDF File Selection** | Lists all PDFs in `input/` directory with file sizes, or enter a custom path. Each file shows a **status column** (`✓` processed, `○` not processed) and a **type column** (Question Paper, Answer Key, Combined). Processed indicator parsed from `.checkpoints.json` via filename pattern matching |
+| **6** | **Already-Processed Detection** | When a PDF is selected, checks `.checkpoints.json`. If processed: shows exam/year/shift, stage progress bar (`OCR → EXT → DIA → VAL → EXP`), and offers **Force** (re-process with `--force`), **Skip**, or **Cancel** |
+| **7** | **PDF Type Detection** | Inline filename analysis: detects `answer`/`key`/`sol` keywords → labels PDF as Question Paper, Answer Key, or Combined. Shown in file listing and config summary |
+| **8** | **Live Pipeline Execution** | Spawns `process-pdf.ts` as child process with real-time colorized log output — cyan INFO, yellow WARN, red ERROR, bold step headers |
+| **9** | **Completion Summary** | Shows exit code, output location, next steps (review, signoff, stats) |
+
+### Visual Design
+
+- ANSI box-drawing header (`╔═╗`) in cyan
+- Typewriter animation for welcome text
+- Unicode braille spinner (`⠋⠙⠹...`) during AI provider tests
+- Color-coded stage progress bar: `OCR → EXT → DIA → VAL → EXP`
+- Dimmed timestamps on log output
+- Hide/show cursor during animations
+
+### Usage
+
+```powershell
+npm run interactive
+```
+
+The wizard loads `.env` automatically and guides through each step with prompts. All flags from `process-pdf.ts` (like `--force`, `--ocr`) are applied based on your choices.
 
 ---
 
@@ -973,7 +1023,7 @@ The system has a **zero-tolerance policy toward fabricated data**, embedded at e
 
 ### Agent Protocol
 
-The `AGENT.md` and `prompts/one-shot-prompt.md` both begin with the HARD RULE against fabrication. Any AI agent running the pipeline is explicitly instructed to:
+The `AGENT.md` (821 lines) and `one-shot-prompt.md` (575 lines) both begin with the HARD RULE against fabrication. Any AI agent running the pipeline is explicitly instructed to:
 
 1. Actually run the pipeline (not simulate it)
 2. Never generate questions from training data
@@ -1276,7 +1326,8 @@ All 9 phases are complete with zero TypeScript compilation errors across 32 sour
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `MISTRAL_API_KEY` | ✅ Yes | — | Mistral AI OCR and embeddings |
+| `MISTRAL_API_KEY` | ✅ Yes* | — | Mistral AI OCR and embeddings (*or MINERU_API_KEY) |
+| `MINERU_API_KEY` | ❌ No | — | MinerU Precision API token (falls back to Agent API) |
 | `NVIDIA_API_KEY` | ❌ No | — | NVIDIA NIM (Qwen3 Coder 480B, primary) |
 | `LONGCAT_API_KEY` | ❌ No | — | LongCat Flash Lite (50M tokens/day free) |
 | `POOLSIDE_API_KEY` | ❌ No | — | Poolside Laguna M.1 (unlimited(preview) free) |
@@ -1348,38 +1399,7 @@ This software is available under two options (your choice):
 
 ---
 
-## Provenance & Integrity
 
-Every JSON file produced by the pipeline includes a `provenance` field (set your own author/repo in `src/finalizers/exporter.ts`) and a `checksum` for tamper detection.
-
-### How Checksums Work
-
-1. Pipeline builds the entire file **without** the checksum field
-2. Computes SHA-256 of that data
-3. Appends `"checksum": "<hash>"` to the file
-
-Any edit to the output breaks the checksum — catch it with:
-
-```powershell
-npm run verify
-```
-
-Manual verification:
-
-```powershell
-npx tsx -e "
-import { readFile } from 'fs/promises';
-import { createHash } from 'crypto';
-const raw = await readFile('path/to/file.json', 'utf8');
-const data = JSON.parse(raw);
-const expected = data.checksum;
-const clone = { ...data };
-delete clone.checksum;
-const sorted = JSON.stringify(clone, Object.keys(clone).sort());
-const actual = createHash('sha256').update(sorted).digest('hex');
-console.log(expected === actual ? 'ORIGINAL' : 'TAMPERED');
-"
-```
 
 > **Question-Pipeline** — From PDF to structured dataset. GPLv3 / Commercial dual-license.
 ```

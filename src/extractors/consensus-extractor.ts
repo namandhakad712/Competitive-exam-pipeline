@@ -1,5 +1,7 @@
+import { request as httpsRequest } from "https";
 import { logger } from "../utils/logger.js";
 import { RateLimiter } from "../utils/rate-limiter.js";
+import { normalizeQuestions, assignSections } from "../utils/normalization.js";
 import type {
   PageContent,
   PartialQuestion,
@@ -20,12 +22,14 @@ const NVIDIA_API = "https://integrate.api.nvidia.com/v1/chat/completions";
 const LONGCAT_API = "https://api.longcat.chat/openai/v1/chat/completions";
 const POOLSIDE_API = "https://inference.poolside.ai/v1/chat/completions";
 const GEMINI_API = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent";
+const ZAI_API = "https://api.z.ai/api/paas/v4/chat/completions";
 
 // ---- API keys ----
 const NVIDIA_KEY = process.env.NVIDIA_API_KEY ?? "";
 const LONGCAT_KEY = process.env.LONGCAT_API_KEY ?? "";
 const POOLSIDE_KEY = process.env.POOLSIDE_API_KEY ?? "";
 const GEMINI_KEY = process.env.GEMINI_API_KEY ?? "";
+const ZAI_KEY = process.env.ZAI_API_KEY ?? "";
 
 // ---- Rate limiters ----
 const nvidiaLimiter = new RateLimiter({ maxRequests: 40, windowMs: 60_000 });
@@ -33,6 +37,7 @@ const longcatLimiter = new RateLimiter({ maxRequests: 30, windowMs: 60_000 });
 const longcatChatLimiter = new RateLimiter({ maxRequests: 30, windowMs: 60_000 });
 const poolsideLimiter = new RateLimiter({ maxRequests: 100, windowMs: 60_000 });
 const geminiLimiter = new RateLimiter({ maxRequests: 15, windowMs: 60_000 });
+const zaiLimiter = new RateLimiter({ maxRequests: 30, windowMs: 60_000 });
 
 // ---- Provider ranking (higher = more reliable for extraction) ----
 const PROVIDER_RANK: Record<ProviderName, number> = {
@@ -40,6 +45,7 @@ const PROVIDER_RANK: Record<ProviderName, number> = {
   "longcat-lite": 6,     // 50M tokens/day + 256K context
   "nvidia-qwen": 5,      // 2,400 RPD + 262K context
   nvidia: 5,             // same as nvidia-qwen
+  zai: 4,                // Z.AI GLM-4.7-Flash, free, 200K context, 128K output
   longcat: 4,            // legacy alias for longcat-lite
   "nvidia-mistral": 4,   // 2,400 RPD + multimodal
   "longcat-chat": 3,     // 500K tokens/day
@@ -162,8 +168,9 @@ function parseExtractionResponse(
       }));
 
   const normalized = normalizeQuestions(safeQuestions);
+  const withSections = assignSections(normalized);
 
-  return { questions: normalized, passages };
+  return { questions: withSections, passages };
 }
 
 // ===================== Provider implementations =====================
@@ -307,6 +314,51 @@ async function callGemini(
       }>;
     };
     return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  });
+}
+
+function httpsPost(url: string, body: string, headers: Record<string, string>): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const req = httpsRequest(
+      { hostname: u.hostname, port: 443, path: u.pathname, method: "POST", headers, timeout: 300000 },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk: Buffer) => (data += chunk.toString()));
+        res.on("end", () => {
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) resolve(data);
+          else reject(new Error(`Z.AI API ${res.statusCode}: ${data.slice(0, 200)}`));
+        });
+      },
+    );
+    req.on("error", reject);
+    req.on("timeout", () => { req.destroy(); reject(new Error("Z.AI API timeout")); });
+    req.write(body);
+    req.end();
+  });
+}
+
+async function callZai(prompt: string, systemPrompt: string): Promise<string> {
+  return zaiLimiter.call(async () => {
+    const body = JSON.stringify({
+      model: "glm-4.7-flash",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.1,
+      max_tokens: 128000,
+      thinking: { type: "disabled" },
+    });
+
+    const raw = await httpsPost(
+      ZAI_API,
+      body,
+      { "Content-Type": "application/json", Authorization: `Bearer ${ZAI_KEY}` },
+    );
+
+    const data = JSON.parse(raw) as { choices: Array<{ message: { content: string } }> };
+    return data.choices?.[0]?.message?.content ?? "";
   });
 }
 
@@ -591,6 +643,7 @@ export async function extractWithConsensus(
     "longcat-chat": callLongcatChat,
     "nvidia-qwen": callNvidiaQwen,
     "nvidia-mistral": callNvidiaMistral,
+    zai: callZai,
   };
 
   const providerKeys: Record<ProviderName, string> = {
@@ -604,6 +657,7 @@ export async function extractWithConsensus(
     "longcat-chat": LONGCAT_KEY,
     "nvidia-qwen": NVIDIA_KEY,
     "nvidia-mistral": NVIDIA_KEY,
+    zai: ZAI_KEY,
   };
 
   // Run providers in parallel
@@ -815,6 +869,7 @@ export async function distributedConsensusExtract(
     "longcat-chat": LONGCAT_KEY,
     "nvidia-qwen": NVIDIA_KEY,
     "nvidia-mistral": NVIDIA_KEY,
+    zai: ZAI_KEY,
   };
 
   const availableProviders = providerNames.filter(
@@ -848,6 +903,7 @@ export async function distributedConsensusExtract(
           "longcat-chat": callLongcatChat,
           "nvidia-qwen": callNvidiaQwen,
           "nvidia-mistral": callNvidiaMistral,
+          zai: callZai,
         };
 
         const raw = await providerCallsMap[providerName](
@@ -895,43 +951,4 @@ export async function distributedConsensusExtract(
   };
 }
 
-// ===================== Normalization =====================
 
-const LETTER_TO_INDEX: Record<string, string> = {
-  a: "0",
-  b: "1",
-  c: "2",
-  d: "3",
-  e: "4",
-};
-
-function normalizeQuestions(
-  questions: PartialQuestion[],
-): PartialQuestion[] {
-  return questions.map((q) => {
-    const number =
-      typeof q.number === "string" ? parseInt(q.number, 10) : q.number;
-
-    let answer = q.answer ?? "";
-    if (answer && answer !== "") {
-      const trimmed = answer.trim().toLowerCase();
-      if (LETTER_TO_INDEX[trimmed] !== undefined) {
-        answer = LETTER_TO_INDEX[trimmed];
-      }
-      if (
-        ["1", "2", "3", "4"].includes(trimmed) &&
-        q.options &&
-        q.options.length === 4
-      ) {
-        answer = String(parseInt(trimmed, 10) - 1);
-      }
-    }
-
-    let options = q.options;
-    if (q.type === "assertion-reason") {
-      options = null;
-    }
-
-    return { ...q, number, answer, options };
-  });
-}
