@@ -47,7 +47,7 @@ Then ask: *"Which exam and shift? e.g. jeemain 2025 22jan-shift1"*
 C:\QUESTION-PIPELINE\
   AGENT.md              THIS FILE
   prompts/
-    MASTER-PROMPT.md      Self-contained prompt
+    one-shot-prompt.md    For AI chat apps (PDF only, no diagrams)
     AI-START-COMMAND.md   Session start instructions
   docs/
     getting-started.md    Quick-start for humans

@@ -1,7 +1,8 @@
-# MASTER PROMPT — Indian Exam PDF → JSON Dataset
+# ONE-SHOT PROMPT — Exam PDF → JSON Dataset
 
-> Copy-paste this entire file into any AI (OpenCode, Cline, Qwen Chat Studio, Claude, Gemini, etc.)
+> Copy-paste this entire file into any AI chat app with agentic capabilities (OpenCode, Cline, Qwen Chat Studio, Claude, Gemini, etc.)
 > The AI needs: web search/fetch to find PDFs + vision to read pages + file save capability.
+> **Limitations:** Works for PDFs only. Diagrams are NOT extracted — online AI agents cannot reliably handle them yet.
 > If you have Mistral OCR API key, you can use it as accelerator (optional, not required).
 > No local codebase needed. This is fully self-contained.
 

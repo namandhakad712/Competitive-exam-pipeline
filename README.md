@@ -332,7 +332,7 @@ C:\QUESTION-PIPELINE\
 │
 ├── AGENT.md                    # AI agent operational manual (root-level for agent discovery)
 ├── prompts/                    # Supporting AI prompts
-│   ├── MASTER-PROMPT.md        # Self-contained prompt (no codebase needed)
+│   ├── one-shot-prompt.md      # One-shot prompt for AI chat apps (PDF only, no diagrams)
 │   └── AI-START-COMMAND.md     # AI session start instructions
 │
 ├── docs/                       # User & developer documentation
@@ -936,7 +936,7 @@ The system has a **zero-tolerance policy toward fabricated data**, embedded at e
 
 ### Agent Protocol
 
-The `AGENT.md` and `prompts/MASTER-PROMPT.md` both begin with the HARD RULE against fabrication. Any AI agent running the pipeline is explicitly instructed to:
+The `AGENT.md` and `prompts/one-shot-prompt.md` both begin with the HARD RULE against fabrication. Any AI agent running the pipeline is explicitly instructed to:
 
 1. Actually run the pipeline (not simulate it)
 2. Never generate questions from training data
